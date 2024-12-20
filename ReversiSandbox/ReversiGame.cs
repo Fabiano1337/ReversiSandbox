@@ -30,10 +30,51 @@ namespace ReversiSandbox
                 }
             }
 
-            gameField[gameSize / 2 - 1,gameSize / 2 - 1] = Player.Bot;
-            gameField[gameSize / 2 - 1,gameSize / 2] = Player.Human;
-            gameField[gameSize / 2,gameSize / 2 - 1] = Player.Human;
-            gameField[gameSize / 2,gameSize / 2] = Player.Bot;
+            gameField[gameSize / 2 - 1, gameSize / 2 - 1] = Player.Bot;
+            gameField[gameSize / 2 - 1, gameSize / 2] = Player.Human;
+            gameField[gameSize / 2, gameSize / 2 - 1] = Player.Human;
+            gameField[gameSize / 2, gameSize / 2] = Player.Bot;
+
+            curPlayer = Player.Human;
+        }
+
+        public static Player[,] generateRandomGameField()
+        {
+            Player[,] field = new Player[gameSize, gameSize];
+            for (int x = 0; x < gameSize; x++)
+            {
+                for (int y = 0; y < gameSize; y++)
+                {
+                    field[x, y] = Player.Empty;
+                }
+            }
+
+            ReversiGame game = new ReversiGame();
+            Random r = new Random();
+            BotRandom botRandom = new BotRandom();
+            int randomCount = r.Next(0, 30);
+
+            for (int i = 0; i < randomCount; i++)
+            {
+                Position botMove = botRandom.generateMove(game);
+                game.move(botMove);
+                game.switchPlayer();
+                if (game.isEnded()) return generateRandomGameField();
+
+                game.switchPlayer();
+                if (game.isEnded()) return generateRandomGameField();
+
+                game.switchPlayer();
+            }
+
+            field = game.gameField;
+
+            return field;
+        }
+
+        public ReversiGame(Player[,] gameField)
+        {
+            this.gameField = gameField;
 
             curPlayer = Player.Human;
         }

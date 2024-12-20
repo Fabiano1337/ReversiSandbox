@@ -8,11 +8,12 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
 {
     class Program
     {
+        const bool randomizedPlayfield = true;
         static void Main(string[] args)
         {
             //humanMatch(new BotRandom());
             //return;
-            int sampleSize = 256;
+            int sampleSize = 100000;
             List<Match> matches = new List<Match>();
             int threadCount = 32;
             Console.WriteLine("Starting " + threadCount.ToString() + " Threads.");
@@ -21,9 +22,9 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
 
             for (int i = 0; i < threadCount; i++) // Favored for bot starting
             {
-                //Bot bot2 = new BotValueMove();
-                Bot bot2 = new BotNeo(5);
-                Bot bot1 = new BotRandom();
+                Bot bot2 = new BotMasking();
+                //Bot bot2 = new BotNeo(5);
+                Bot bot1 = new BotValueMove();
                 Thread t = new Thread(() => threadMatch(matches,bot1,bot2, sampleSize / threadCount));
                 t.Start();
                 threads.Add(t);
@@ -64,7 +65,7 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
 
         static void evaluateMatches(List<Match> matches)
         {
-            Console.WriteLine(matches[0].bot1.ToString() + " vs " + matches[0].bot2.ToString() + " in " + matches.Count + " matches.");
+            Console.WriteLine(matches[0].bot1.ToString() + " vs " + matches[0].bot2.ToString() + " in " + matches.Count + " matches"+(randomizedPlayfield?", randomized":", default")+".");
             Dictionary<Type, int> wins = new Dictionary<Type, int>();
             float tie = 0;
             float gameCount = matches.Count;
@@ -151,7 +152,11 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
 
         static Match simulateMatch(Bot bot1, Bot bot2)
         {
-            ReversiGame game = new ReversiGame();
+            ReversiGame game;
+            if(randomizedPlayfield)
+                game = new ReversiGame(ReversiGame.generateRandomGameField());
+            else
+                game = new ReversiGame();
 
             Position botMove;
 
