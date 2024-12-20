@@ -15,9 +15,9 @@ namespace ReversiSandbox
     }
     public class ReversiGame
     {
-        const int gameSize = 8;
+        public const int gameSize = 8;
         public Player curPlayer;
-        Player[,] gameField;
+        public Player[,] gameField;
 
         public ReversiGame()
         {
@@ -64,7 +64,7 @@ namespace ReversiSandbox
                 x += dx;
                 y += dy;
 
-                if (gameField[x,y] == Player.Empty) return;
+                if (gameField[x, y] == Player.Empty) return;
                 if (out_of_bounds(x, y)) return;
                 if (gameField[x, y] == curPlayer) return;
 
@@ -73,6 +73,66 @@ namespace ReversiSandbox
                 else if (gameField[x, y] == Player.Bot)
                     gameField[x, y] = Player.Human;
             }
+        }
+
+        static Player[,] reverse_dir(Player[,] gameField, Player curPlayer, int x, int y, int dx, int dy)
+        {
+            if (!legal_dir(gameField,curPlayer, x, y, dx, dy)) return gameField;
+
+            while (true)
+            {
+                x += dx;
+                y += dy;
+
+                if (gameField[x, y] == Player.Empty) return gameField;
+                if (out_of_bounds(x, y)) return gameField;
+                if (gameField[x, y] == curPlayer) return gameField;
+
+                if (gameField[x, y] == Player.Human)
+                    gameField[x, y] = Player.Bot;
+                else if (gameField[x, y] == Player.Bot)
+                    gameField[x, y] = Player.Human;
+            }
+        }
+
+        static int count_dir(Player[,] gameField, Player curPlayer,int x, int y, int dx, int dy)
+        {
+            int count = 0;
+            if (!legal_dir(gameField, curPlayer, x, y, dx, dy)) return 0;
+
+            while (true)
+            {
+                x += dx;
+                y += dy;
+
+                if (gameField[x, y] == Player.Empty) return count;
+                if (out_of_bounds(x, y)) return count;
+                if (gameField[x, y] == curPlayer) return count;
+
+                if (gameField[x, y] == Player.Human)
+                    count++;
+                else if (gameField[x, y] == Player.Bot)
+                    count++;
+            }
+        }
+
+        public static Player[,] reverse(Player[,] gameField, Player curPlayer,int x, int y)
+        {
+            Position pos = new Position { x = x, y = y };
+            if (!isMoveValid(gameField, curPlayer, pos))
+                throw new Exception();
+
+            gameField[x, y] = curPlayer;
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    if (dx == 0 && dy == 0) continue;
+                    gameField = reverse_dir(gameField, curPlayer,x, y, dx, dy);
+                }
+            }
+
+            return gameField;
         }
 
         void reverse(int x, int y)
@@ -93,17 +153,11 @@ namespace ReversiSandbox
 
         public bool isEnded()
         {
-            if (getPossibleMoves().Count == 0) return true;
-            if (getPossibleMoves(getOppositePlayer(this)).Count == 0) return true;
+            if (getPossibleMoves(curPlayer).Count == 0) return true;
 
-            for (int x = 0; x < gameSize; x++)
-            {
-                for (int y = 0; y < gameSize; y++)
-                {
-                    if (gameField[x, y] == Player.Empty) return false;
-                }
-            }
-            return true;
+            //if (getPossibleMoves(getOppositePlayer(this)).Count == 0) return true;
+
+            return false;
         }
 
         public void printGameField()
@@ -128,6 +182,25 @@ namespace ReversiSandbox
             }
         }
 
+        public static int getTilesCaptured(Player[,] gameField, Position pos, Player p)
+        {
+            if (!isMoveValid(gameField, p, pos)) 
+                throw new Exception();
+
+            int count = 0;
+
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    if (dx == 0 && dy == 0) continue;
+                    count += count_dir(gameField,p,pos.x, pos.y, dx, dy);
+                }
+            }
+
+            return count;
+        }
+
         public List<Position> getPossibleMoves()
         {
             return getPossibleMoves(curPlayer);
@@ -141,6 +214,23 @@ namespace ReversiSandbox
                 for (int x = 0; x < gameSize; x++)
                 {
                     if (isMoveValid(this, player, new Position() { x = x, y = y }))
+                    {
+                        Position pos = new Position() { x = x, y = y };
+                        moves.Add(pos);
+                    }
+                }
+            }
+            return moves;
+        }
+
+        public static List<Position> getPossibleMoves(Player[,] gameField, Player player)
+        {
+            List<Position> moves = new List<Position>();
+            for (int y = 0; y < gameSize; y++)
+            {
+                for (int x = 0; x < gameSize; x++)
+                {
+                    if (isMoveValid(gameField, player, new Position() { x = x, y = y }))
                     {
                         Position pos = new Position() { x = x, y = y };
                         moves.Add(pos);
@@ -196,7 +286,7 @@ namespace ReversiSandbox
         public static bool isMoveValid(ReversiGame game, Player player, Position pos)
         {
             Player[,] gameField = game.gameField;
-            if (gameField[pos.x,pos.y] != Player.Empty) return false;
+            if (gameField[pos.x, pos.y] != Player.Empty) return false;
 
             for (int dy = -1; dy <= 1; dy++)
             {
@@ -209,10 +299,33 @@ namespace ReversiSandbox
             return false;
         }
 
-        private static Player getOppositePlayer(ReversiGame game)
+        public static bool isMoveValid(Player[,] gameField, Player player, Position pos)
+        {
+            if (gameField[pos.x, pos.y] != Player.Empty) return false;
+
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    if (dx == 0 && dy == 0) continue;
+                    if (legal_dir(gameField, player, pos.x, pos.y, dx, dy)) return true;
+                }
+            }
+            return false;
+        }
+
+        public static Player getOppositePlayer(ReversiGame game)
         {
             if (game.curPlayer == Player.Human) return Player.Bot;
             if (game.curPlayer == Player.Bot) return Player.Human;
+
+            throw new Exception();
+        }
+
+        public static Player getOppositePlayer(Player p)
+        {
+            if (p == Player.Human) return Player.Bot;
+            if (p == Player.Bot) return Player.Human;
 
             throw new Exception();
         }
@@ -226,9 +339,25 @@ namespace ReversiSandbox
                 y += dy;
                 if (out_of_bounds(x, y)) return false;
 
-                if (game.gameField[x,y] == getOppositePlayer(game)) stoneBetween = true;
-                if (game.gameField[x,y] == game.curPlayer) break;
-                if (game.gameField[x,y] == Player.Empty) return false;
+                if (game.gameField[x, y] == getOppositePlayer(game)) stoneBetween = true;
+                if (game.gameField[x, y] == game.curPlayer) break;
+                if (game.gameField[x, y] == Player.Empty) return false;
+            }
+            return stoneBetween;
+        }
+
+        private static bool legal_dir(Player[,] gameField, Player curPlayer, int x, int y, int dx, int dy)
+        {
+            bool stoneBetween = false;
+            while (true)
+            {
+                x += dx;
+                y += dy;
+                if (out_of_bounds(x, y)) return false;
+
+                if (gameField[x, y] == getOppositePlayer(curPlayer)) stoneBetween = true;
+                if (gameField[x, y] == curPlayer) break;
+                if (gameField[x, y] == Player.Empty) return false;
             }
             return stoneBetween;
         }
