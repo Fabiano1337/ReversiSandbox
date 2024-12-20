@@ -50,6 +50,8 @@ namespace ReversiSandbox
 
         public void move(Position pos)
         {
+            if (!isMoveValid(this, curPlayer, pos)) throw new Exception();
+
             reverse(pos.x, pos.y);
         }
 
@@ -76,7 +78,7 @@ namespace ReversiSandbox
         void reverse(int x, int y)
         {
             Position pos = new Position { x = x, y = y };
-            if (!isMoveValid(this, this.curPlayer, pos)) return;
+            if (!isMoveValid(this, curPlayer, pos)) return;
 
             gameField[x, y] = curPlayer;
             for (int dy = -1; dy <= 1; dy++)
@@ -87,6 +89,21 @@ namespace ReversiSandbox
                     reverse_dir(x, y, dx, dy);
                 }
             }
+        }
+
+        public bool isEnded()
+        {
+            if (getPossibleMoves().Count == 0) return true;
+            if (getPossibleMoves(getOppositePlayer(this)).Count == 0) return true;
+
+            for (int x = 0; x < gameSize; x++)
+            {
+                for (int y = 0; y < gameSize; y++)
+                {
+                    if (gameField[x, y] == Player.Empty) return false;
+                }
+            }
+            return true;
         }
 
         public void printGameField()
@@ -111,14 +128,19 @@ namespace ReversiSandbox
             }
         }
 
-        List<Position> getPossibleMoves()
+        public List<Position> getPossibleMoves()
+        {
+            return getPossibleMoves(curPlayer);
+        }
+
+        public List<Position> getPossibleMoves(Player player)
         {
             List<Position> moves = new List<Position>();
             for (int y = 0; y < gameSize; y++)
             {
                 for (int x = 0; x < gameSize; x++)
                 {
-                    if (isMoveValid(this, this.curPlayer, new Position() { x=x, y=y } ))
+                    if (isMoveValid(this, player, new Position() { x = x, y = y }))
                     {
                         Position pos = new Position() { x = x, y = y };
                         moves.Add(pos);
