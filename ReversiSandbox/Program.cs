@@ -6,8 +6,6 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
     {
         static void Main(string[] args)
         {
-            ReversiGame game = new ReversiGame(); // X = Human, O = Bot
-
             Bot bot1 = new BotRandom();
             Bot bot2 = new BotRandom();
 
@@ -15,7 +13,13 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             Console.WriteLine(match.Winner);
             Console.WriteLine(match.bot1Score);
             Console.WriteLine(match.bot2Score);
-            /*game.printGameField();
+        }
+
+        static void humanMatch(Bot bot)
+        {
+            ReversiGame game = new ReversiGame(); // X = Human, O = Bot
+
+            game.printGameField();
             game.printPossibleMoves();
             while (true)
             {
@@ -45,7 +49,7 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
 
                 game.printPossibleMoves();
                 //Console.Clear();
-            }*/
+            }
         }
 
         static Match simulateMatch(Bot bot1, Bot bot2)
