@@ -9,8 +9,10 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
     class Program
     {
         const bool randomizedPlayfield = true;
-        static void Main(string[] args)
+        static void Main(string[] args)                 // Todo : Add Training for Masking
         {
+            trainMask();
+            while (true) { };
             //humanMatch(new BotRandom());
             //return;
             int sampleSize = 100000;
@@ -22,9 +24,9 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
 
             for (int i = 0; i < threadCount; i++) // Favored for bot starting
             {
-                Bot bot2 = new BotMasking();
+                Bot bot1 = new BotMasking();
                 //Bot bot2 = new BotNeo(5);
-                Bot bot1 = new BotValueMove();
+                Bot bot2 = new BotValueMove();
                 Thread t = new Thread(() => threadMatch(matches,bot1,bot2, sampleSize / threadCount));
                 t.Start();
                 threads.Add(t);
@@ -50,6 +52,122 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             //Console.WriteLine(match.bot2Score);
         }
 
+        static void trainMask()
+        {
+            int evolutionSize = 4;
+            int sampleSize = 4096;
+            int threadCount = 32;
+
+            List<Bot> bots = new List<Bot>();
+            List<Thread> threads = new List<Thread>();
+            List<Match> matches = new List<Match>();
+
+            for (int i = 0; i < evolutionSize; i++)
+            {
+                float[,] mask = new float[ReversiGame.gameSize, ReversiGame.gameSize];
+                mask = mutateMask(mask);
+                Bot bot = new BotMasking(mask);
+
+                bots.Add(bot);
+            }
+
+            for (int i = 0; i < evolutionSize; i++)
+            {
+                for (int j = 0; j < evolutionSize; j++)
+                {
+                    for (int x = 0; x < threadCount; x++)
+                    {
+                        Bot bot1 = bots[i];
+                        Bot bot2 = bots[j];
+                        Thread t = new Thread(() => threadMatch(matches, bot1, bot2, sampleSize / threadCount));
+                        t.Start();
+                        threads.Add(t);
+                    }
+                }
+            }
+            waitForThreads(threads);
+            Dictionary<Bot,int> weights = new Dictionary<Bot, int>();
+
+            foreach (var bot in bots)
+            {
+                weights[bot] = 0;
+            }
+
+            foreach (Match m in matches)
+            {
+                if (m.Winner == null)
+                    continue;
+
+                if (m.Looser == null)
+                    continue;
+
+                weights[m.Winner]++;
+                weights[m.Looser]++;
+            }
+
+            foreach (var bot in weights)
+            {
+                Console.WriteLine(bot.Value);
+            }
+
+            Console.WriteLine("Done Evolution");
+            //evaluateMatches(matches);
+
+        }
+
+        static void waitForThreads(List<Thread> threads)
+        {
+            while (true)
+            {
+                bool running = false;
+
+                foreach (Thread t in threads)
+                {
+                    if (t.IsAlive) running = true;
+                }
+
+                if (!running)
+                    break;
+            }
+        }
+
+        static float[,] mutateMask(float[,] oldMask)
+        {
+            float randomness = 0.1f;
+            float amplitude = 2;
+
+            Random r = new Random();
+
+            float[,] randomWeights = new float[ReversiGame.gameSize, ReversiGame.gameSize];
+
+            for (int x = 0; x < ReversiGame.gameSize; x++)
+            {
+                for (int y = 0; y < ReversiGame.gameSize; y++)
+                {
+                    float weight = (float)(r.NextDouble() * amplitude * 2);
+                    bool negative = r.Next(0, 2) == 1;
+
+                    if (negative)
+                        weight = -weight;
+
+                    if (r.NextDouble() < randomness)
+                        randomWeights[x, y] = weight;
+                    else
+                        randomWeights[x, y] = 0;
+                }
+            }
+
+            for (int x = 0; x < ReversiGame.gameSize; x++)
+            {
+                for (int y = 0; y < ReversiGame.gameSize; y++)
+                {
+                    oldMask[x,y] = oldMask[x,y]+randomWeights[x,y];
+                }
+            }
+
+            return oldMask;
+        }
+
         static void threadMatch(List<Match> matches, Bot bot1, Bot bot2, int sampleSize)
         {
             for (int i = 0; i < sampleSize; i++)
@@ -60,7 +178,7 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
                     matches.Add(m);
             }
 
-            Console.WriteLine("Thread Done.");
+            //Console.WriteLine("Thread Done.");
         }
 
         static void evaluateMatches(List<Match> matches)
@@ -201,16 +319,19 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             {
                 //Console.WriteLine("Bot1 Won!");
                 match.Winner = bot1;
+                match.Looser = bot2;
             }
             else if (bot2Score > bot1Score)
             {
                 //Console.WriteLine("Bot2 Won!");
                 match.Winner = bot2;
+                match.Looser = bot1;
             }
             else if (bot1Score == bot2Score)
             {
                 //Console.WriteLine("Tie!");
                 match.Winner = null;
+                match.Looser = null;
             }
 
             return match;

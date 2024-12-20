@@ -13,5 +13,6 @@ namespace ReversiSandbox
         public Bot? bot1;
         public Bot? bot2;
         public Bot? Winner;
+        public Bot? Looser;
     }
 }

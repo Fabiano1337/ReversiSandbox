@@ -20,6 +20,16 @@ namespace ReversiSandbox
                 {8f,1f,1f,1f,1f,1f,1f,8f},
                 {16f,8f,8f,8f,8f,8f,8f,16f}};
 
+        public BotMasking()
+        {
+            
+        }
+
+        public BotMasking(float[,] weights)
+        {
+            this.weights = weights;
+        }
+
         public override Position generateMove(ReversiGame game)
         {
             var moves = game.getPossibleMoves();
