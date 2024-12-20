@@ -1,4 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace ReversiSandbox // Note: actual namespace depends on the project name.
 {
@@ -6,13 +10,106 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
     {
         static void Main(string[] args)
         {
-            Bot bot1 = new BotRandom();
-            Bot bot2 = new BotRandom();
+            //humanMatch(new BotRandom());
+            //return;
+            int sampleSize = 256;
+            List<Match> matches = new List<Match>();
+            int threadCount = 32;
+            Console.WriteLine("Starting " + threadCount.ToString() + " Threads.");
 
-            Match match = simulateMatch(bot1, bot2);
-            Console.WriteLine(match.Winner);
-            Console.WriteLine(match.bot1Score);
-            Console.WriteLine(match.bot2Score);
+            List<Thread> threads = new List<Thread>();
+
+            for (int i = 0; i < threadCount; i++) // Favored for bot starting
+            {
+                //Bot bot2 = new BotValueMove();
+                Bot bot2 = new BotNeo(5);
+                Bot bot1 = new BotRandom();
+                Thread t = new Thread(() => threadMatch(matches,bot1,bot2, sampleSize / threadCount));
+                t.Start();
+                threads.Add(t);
+
+                //matches.Add(simulateMatch(bot1, bot2));
+            }
+            while(true)
+            {
+                bool running = false;
+
+                foreach (Thread t in threads)
+                {
+                    if (t.IsAlive) running = true;
+                }
+
+                if (!running)
+                    break;
+            }
+            evaluateMatches(matches);
+
+            //Console.WriteLine(match.Winner);
+            //Console.WriteLine(match.bot1Score);
+            //Console.WriteLine(match.bot2Score);
+        }
+
+        static void threadMatch(List<Match> matches, Bot bot1, Bot bot2, int sampleSize)
+        {
+            for (int i = 0; i < sampleSize; i++)
+            {
+                Match m = simulateMatch(bot1, bot2);
+
+                lock (matches)
+                    matches.Add(m);
+            }
+
+            Console.WriteLine("Thread Done.");
+        }
+
+        static void evaluateMatches(List<Match> matches)
+        {
+            Console.WriteLine(matches[0].bot1.ToString() + " vs " + matches[0].bot2.ToString() + " in " + matches.Count + " matches.");
+            Dictionary<Type, int> wins = new Dictionary<Type, int>();
+            float tie = 0;
+            float gameCount = matches.Count;
+            float tiePercent, winPercent;
+
+            var type = typeof(Bot);
+            var bots = AppDomain.CurrentDomain.GetAssemblies()
+                .SelectMany(s => s.GetTypes())
+                .Where(p => type.IsAssignableFrom(p));
+
+            foreach (var bot in bots)
+            {
+                if (bot.IsAbstract) continue;
+                wins[bot]=0;
+            }
+
+            foreach (var match in matches)
+            {
+                foreach (var bot in bots)
+                {
+                    if (bot.IsAbstract)
+                        continue;
+
+                    if (match.Winner == null)
+                    {
+                        tie++;
+                        break;
+                    }
+
+                    if (bot != match.Winner.GetType())
+                        continue;
+
+                    wins[bot]++;
+                }
+            }
+
+            tiePercent = tie * 100f / gameCount;
+            Console.WriteLine("Tie: " + tiePercent.ToString()+"%");
+            foreach (var item in wins)
+            {
+                winPercent = item.Value*100f / gameCount;
+                Console.WriteLine(item.Key.ToString() + " wins : " + winPercent + "%");
+            }
+
+            Console.WriteLine("---------------------------------------------------------------------");
         }
 
         static void humanMatch(Bot bot)
@@ -33,6 +130,7 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
                 string cmd = Console.ReadLine();
                 Console.WriteLine();
                 Position pos = cmdToPos(cmd);
+                //Console.WriteLine(ReversiGame.getTilesCaptured(game.gameField, pos, game.curPlayer));
 
                 game.move(pos);
                 game.printGameField();
@@ -48,7 +146,6 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
                 game.switchPlayer();
 
                 game.printPossibleMoves();
-                //Console.Clear();
             }
         }
 
@@ -57,40 +154,57 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             ReversiGame game = new ReversiGame();
 
             Position botMove;
+
+            Random r = new Random();
+            bool reverse = r.Next(0,2)==1?true:false;
+
+            if(reverse)
+            {
+                Bot buffer = bot1;
+                bot1 = bot2;
+                bot2 = buffer;
+            }
+
             while (true)
             {
                 botMove = bot1.generateMove(game);
                 game.move(botMove);
-                if (game.isEnded()) break;
                 game.switchPlayer();
+                //Console.WriteLine(bot1.ToString() + " move : " + positionToString(botMove));
+                //game.printGameField();
+                if (game.isEnded()) break;
 
                 botMove = bot2.generateMove(game);
                 game.move(botMove);
-                if (game.isEnded()) break;
                 game.switchPlayer();
+                //Console.WriteLine(bot2.ToString() + " move : " + positionToString(botMove));
+                //game.printGameField();
+                if (game.isEnded()) break;
             }
             int bot1Score = ReversiGame.count_stones(game, Player.Human);
             int bot2Score = ReversiGame.count_stones(game, Player.Bot);
-            Console.WriteLine("Bot1's Score : " + (bot1Score - bot2Score).ToString());
-            Console.WriteLine("Bot2's Score : " + (bot2Score - bot1Score).ToString());
+            //Console.WriteLine("Bot1's Score : " + (bot1Score - bot2Score).ToString());
+            //Console.WriteLine("Bot2's Score : " + (bot2Score - bot1Score).ToString());
 
             Match match = new Match();
+            match.bot1 = bot1;
+            match.bot2 = bot2;
             match.bot1Score = bot1Score;
             match.bot2Score = bot2Score;
 
             if (bot1Score > bot2Score)
             {
-                Console.WriteLine("Bot1 Won!");
+                //Console.WriteLine("Bot1 Won!");
                 match.Winner = bot1;
             }
             else if (bot2Score > bot1Score)
             {
-                Console.WriteLine("Bot2 Won!");
+                //Console.WriteLine("Bot2 Won!");
                 match.Winner = bot2;
             }
             else if (bot1Score == bot2Score)
             {
-                Console.WriteLine("Tie!");
+                //Console.WriteLine("Tie!");
                 match.Winner = null;
             }
 
