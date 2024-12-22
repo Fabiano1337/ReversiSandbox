@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ComputeSharp;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text.RegularExpressions;
@@ -11,7 +12,8 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
         const bool randomizedPlayfield = true;
         static void Main(string[] args)                 // Todo : Add Training for Masking
         {
-            trainMask();
+            ComputeShader.testComputeShader();
+            //trainMask();
             while (true) { };
             //humanMatch(new BotRandom());
             //return;
@@ -52,10 +54,10 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             //Console.WriteLine(match.bot2Score);
         }
 
-        static void trainMask()
+        static void trainMask() // 2Do : https://github.com/Sergio0694/ComputeSharp/wiki/3.-Getting-started-%F0%9F%93%96 📖
         {
             int evolutionSize = 4;
-            int sampleSize = 4096;
+            int sampleSize = 4096; // Get stuff to mutate more in the beninning 👍
             int threadCount = 32;
 
             List<Bot> bots = new List<Bot>();
@@ -240,8 +242,8 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             while (true)
             {
 
-                int xScore = ReversiGame.count_stones(game, Player.Human);
-                int oScore = ReversiGame.count_stones(game, Player.Bot);
+                int xScore = ReversiGame.count_stones(game, ReversiGame.Human);
+                int oScore = ReversiGame.count_stones(game, ReversiGame.Bot);
                 Console.WriteLine("X's Score : " + (xScore-oScore).ToString());
                 
                 Console.WriteLine(game.curPlayer.ToString() + "'s Turn");
@@ -304,8 +306,8 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
                 //game.printGameField();
                 if (game.isEnded()) break;
             }
-            int bot1Score = ReversiGame.count_stones(game, Player.Human);
-            int bot2Score = ReversiGame.count_stones(game, Player.Bot);
+            int bot1Score = ReversiGame.count_stones(game, ReversiGame.Human);
+            int bot2Score = ReversiGame.count_stones(game, ReversiGame.Bot);
             //Console.WriteLine("Bot1's Score : " + (bot1Score - bot2Score).ToString());
             //Console.WriteLine("Bot2's Score : " + (bot2Score - bot1Score).ToString());
 

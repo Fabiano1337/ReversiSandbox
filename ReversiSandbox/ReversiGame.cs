@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ComputeSharp;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,45 +8,44 @@ using System.Threading.Tasks;
 
 namespace ReversiSandbox
 {
-    public enum Player
-    {
-        Empty,
-        Human,
-        Bot
-    }
+    
     public class ReversiGame
     {
         public const int gameSize = 8;
-        public Player curPlayer;
-        public Player[,] gameField;
+        public int curPlayer;
+        public int[] gameField;
+
+        public const int Empty = 0;
+        public const int Human = 1;
+        public const int Bot = 2;
 
         public ReversiGame()
         {
-            gameField = new Player[gameSize, gameSize];
+            gameField = new int[gameSize*gameSize];
             for (int x = 0; x < gameSize; x++)
             {
                 for (int y = 0; y < gameSize; y++)
                 {
-                    gameField[x, y] = Player.Empty;
+                    gameField[x+y*gameSize] = Empty;
                 }
             }
 
-            gameField[gameSize / 2 - 1, gameSize / 2 - 1] = Player.Bot;
-            gameField[gameSize / 2 - 1, gameSize / 2] = Player.Human;
-            gameField[gameSize / 2, gameSize / 2 - 1] = Player.Human;
-            gameField[gameSize / 2, gameSize / 2] = Player.Bot;
+            gameField[gameSize / 2 - 1 + (gameSize / 2 - 1)*gameSize] = Bot;
+            gameField[gameSize / 2 - 1 + (gameSize / 2)* gameSize] = Human;
+            gameField[gameSize / 2 + (gameSize / 2 - 1)* gameSize] = Human;
+            gameField[gameSize / 2 + (gameSize / 2)* gameSize] = Bot;
 
-            curPlayer = Player.Human;
+            curPlayer = Human;
         }
 
-        public static Player[,] generateRandomGameField()
+        public static int[] generateRandomGameField()
         {
-            Player[,] field = new Player[gameSize, gameSize];
+            int[] field = new int[gameSize * gameSize];
             for (int x = 0; x < gameSize; x++)
             {
                 for (int y = 0; y < gameSize; y++)
                 {
-                    field[x, y] = Player.Empty;
+                    field[x+y*gameSize] = Empty;
                 }
             }
 
@@ -72,14 +72,14 @@ namespace ReversiSandbox
             return field;
         }
 
-        public ReversiGame(Player[,] gameField)
+        public ReversiGame(int[] gameField)
         {
             this.gameField = gameField;
 
-            curPlayer = Player.Human;
+            curPlayer = Human;
         }
 
-        public void setPlayer(Player p)
+        public void setint(int p)
         {
             curPlayer = p;
         }
@@ -105,18 +105,18 @@ namespace ReversiSandbox
                 x += dx;
                 y += dy;
 
-                if (gameField[x, y] == Player.Empty) return;
+                if (gameField[x+y*gameSize] == Empty) return;
                 if (out_of_bounds(x, y)) return;
-                if (gameField[x, y] == curPlayer) return;
+                if (gameField[x+y*gameSize] == curPlayer) return;
 
-                if (gameField[x, y] == Player.Human)
-                    gameField[x, y] = Player.Bot;
-                else if (gameField[x, y] == Player.Bot)
-                    gameField[x, y] = Player.Human;
+                if (gameField[x+y*gameSize] == Human)
+                    gameField[x+y*gameSize] = Bot;
+                else if (gameField[x+y*gameSize] == Bot)
+                    gameField[x+y*gameSize] = Human;
             }
         }
 
-        static Player[,] reverse_dir(Player[,] gameField, Player curPlayer, int x, int y, int dx, int dy)
+        static int[] reverse_dir(int[] gameField, int curPlayer, int x, int y, int dx, int dy)
         {
             if (!legal_dir(gameField,curPlayer, x, y, dx, dy)) return gameField;
 
@@ -125,18 +125,18 @@ namespace ReversiSandbox
                 x += dx;
                 y += dy;
 
-                if (gameField[x, y] == Player.Empty) return gameField;
+                if (gameField[x+y*gameSize] == Empty) return gameField;
                 if (out_of_bounds(x, y)) return gameField;
-                if (gameField[x, y] == curPlayer) return gameField;
+                if (gameField[x+y*gameSize] == curPlayer) return gameField;
 
-                if (gameField[x, y] == Player.Human)
-                    gameField[x, y] = Player.Bot;
-                else if (gameField[x, y] == Player.Bot)
-                    gameField[x, y] = Player.Human;
+                if (gameField[x+y*gameSize] == Human)
+                    gameField[x+y*gameSize] = Bot;
+                else if (gameField[x+y*gameSize] == Bot)
+                    gameField[x+y*gameSize] = Human;
             }
         }
 
-        static int count_dir(Player[,] gameField, Player curPlayer,int x, int y, int dx, int dy)
+        static int count_dir(int[] gameField, int curPlayer,int x, int y, int dx, int dy)
         {
             int count = 0;
             if (!legal_dir(gameField, curPlayer, x, y, dx, dy)) return 0;
@@ -146,24 +146,24 @@ namespace ReversiSandbox
                 x += dx;
                 y += dy;
 
-                if (gameField[x, y] == Player.Empty) return count;
+                if (gameField[x+y*gameSize] == Empty) return count;
                 if (out_of_bounds(x, y)) return count;
-                if (gameField[x, y] == curPlayer) return count;
+                if (gameField[x+y*gameSize] == curPlayer) return count;
 
-                if (gameField[x, y] == Player.Human)
+                if (gameField[x+y*gameSize] == Human)
                     count++;
-                else if (gameField[x, y] == Player.Bot)
+                else if (gameField[x+y*gameSize] == Bot)
                     count++;
             }
         }
 
-        public static Player[,] reverse(Player[,] gameField, Player curPlayer,int x, int y)
+        public static int[] reverse(int[] gameField, int curPlayer,int x, int y)
         {
             Position pos = new Position { x = x, y = y };
             if (!isMoveValid(gameField, curPlayer, pos))
                 throw new Exception();
 
-            gameField[x, y] = curPlayer;
+            gameField[x+y*gameSize] = curPlayer;
             for (int dy = -1; dy <= 1; dy++)
             {
                 for (int dx = -1; dx <= 1; dx++)
@@ -181,7 +181,7 @@ namespace ReversiSandbox
             Position pos = new Position { x = x, y = y };
             if (!isMoveValid(this, curPlayer, pos)) return;
 
-            gameField[x, y] = curPlayer;
+            gameField[x+y*gameSize] = curPlayer;
             for (int dy = -1; dy <= 1; dy++)
             {
                 for (int dx = -1; dx <= 1; dx++)
@@ -209,11 +209,11 @@ namespace ReversiSandbox
                 Console.Write((y + 1).ToString() + "|");
                 for (int x = 0; x < gameSize; x++)
                 {
-                    if (gameField[x, y] == Player.Human)
+                    if (gameField[x+y*gameSize] == Human)
                         Console.Write("X");
-                    if (gameField[x, y] == Player.Bot)
+                    if (gameField[x+y*gameSize] == Bot)
                         Console.Write("O");
-                    if (gameField[x, y] == Player.Empty)
+                    if (gameField[x+y*gameSize] == Empty)
                         Console.Write("_");
 
                     Console.Write("|");
@@ -223,7 +223,7 @@ namespace ReversiSandbox
             }
         }
 
-        public static int getTilesCaptured(Player[,] gameField, Position pos, Player p)
+        public static int getTilesCaptured(int[] gameField, Position pos, int p)
         {
             if (!isMoveValid(gameField, p, pos)) 
                 throw new Exception();
@@ -247,7 +247,7 @@ namespace ReversiSandbox
             return getPossibleMoves(curPlayer);
         }
 
-        public List<Position> getPossibleMoves(Player player)
+        public List<Position> getPossibleMoves(int player)
         {
             List<Position> moves = new List<Position>();
             for (int y = 0; y < gameSize; y++)
@@ -264,7 +264,7 @@ namespace ReversiSandbox
             return moves;
         }
 
-        public static List<Position> getPossibleMoves(Player[,] gameField, Player player)
+        public static List<Position> getPossibleMoves(int[] gameField, int player)
         {
             List<Position> moves = new List<Position>();
             for (int y = 0; y < gameSize; y++)
@@ -291,11 +291,11 @@ namespace ReversiSandbox
                 for (int x = 0; x < gameSize; x++)
                 {
                     string output = "//";
-                    if (gameField[x, y] == Player.Human)
+                    if (gameField[x+y*gameSize] == Human)
                         output = "X";
-                    else if (gameField[x, y] == Player.Bot)
+                    else if (gameField[x+y*gameSize] == Bot)
                         output = "O";
-                    else if (gameField[x, y] == Player.Empty)
+                    else if (gameField[x+y*gameSize] == Empty)
                         output = "_";
 
                     for (int i = 0; i < moves.Count; i++)
@@ -310,24 +310,24 @@ namespace ReversiSandbox
             }
         }
 
-        public static int count_stones(ReversiGame game, Player p)
+        public static int count_stones(ReversiGame game, int p)
         {
             int count = 0;
             for (int y = 0; y < gameSize; y++)
             {
                 for (int x = 0; x < gameSize; x++)
                 {
-                    if (game.gameField[x,y] == p) count++;
+                    if (game.gameField[x+y*gameSize] == p) count++;
                 }
             }
 
             return count;
         }
 
-        public static bool isMoveValid(ReversiGame game, Player player, Position pos)
+        public static bool isMoveValid(ReversiGame game, int player, Position pos)
         {
-            Player[,] gameField = game.gameField;
-            if (gameField[pos.x, pos.y] != Player.Empty) return false;
+            int[] gameField = game.gameField;
+            if (gameField[pos.x + pos.y * gameSize] != Empty) return false;
 
             for (int dy = -1; dy <= 1; dy++)
             {
@@ -340,9 +340,9 @@ namespace ReversiSandbox
             return false;
         }
 
-        public static bool isMoveValid(Player[,] gameField, Player player, Position pos)
+        public static bool isMoveValid(int[] gameField, int player, Position pos)
         {
-            if (gameField[pos.x, pos.y] != Player.Empty) return false;
+            if (gameField[pos.x + pos.y * gameSize] != Empty) return false;
 
             for (int dy = -1; dy <= 1; dy++)
             {
@@ -355,20 +355,20 @@ namespace ReversiSandbox
             return false;
         }
 
-        public static Player getOppositePlayer(ReversiGame game)
+        public static int getOppositePlayer(ReversiGame game)
         {
-            if (game.curPlayer == Player.Human) return Player.Bot;
-            if (game.curPlayer == Player.Bot) return Player.Human;
+            if (game.curPlayer == Human) return Bot;
+            if (game.curPlayer == Bot) return Human;
 
             throw new Exception();
         }
 
-        public static Player getOppositePlayer(Player p)
+        public static int getOppositePlayer(int p)
         {
-            if (p == Player.Human) return Player.Bot;
-            if (p == Player.Bot) return Player.Human;
+            if (p == Human) return Bot;
+            if (p == Bot) return Human;
 
-            throw new Exception();
+            return -1;
         }
 
         private static bool legal_dir(ReversiGame game, int x, int y, int dx, int dy)
@@ -380,14 +380,14 @@ namespace ReversiSandbox
                 y += dy;
                 if (out_of_bounds(x, y)) return false;
 
-                if (game.gameField[x, y] == getOppositePlayer(game)) stoneBetween = true;
-                if (game.gameField[x, y] == game.curPlayer) break;
-                if (game.gameField[x, y] == Player.Empty) return false;
+                if (game.gameField[x+y*gameSize] == getOppositePlayer(game)) stoneBetween = true;
+                if (game.gameField[x+y*gameSize] == game.curPlayer) break;
+                if (game.gameField[x+y*gameSize] == Empty) return false;
             }
             return stoneBetween;
         }
 
-        private static bool legal_dir(Player[,] gameField, Player curPlayer, int x, int y, int dx, int dy)
+        private static bool legal_dir(int[] gameField, int curPlayer, int x, int y, int dx, int dy)
         {
             bool stoneBetween = false;
             while (true)
@@ -396,9 +396,9 @@ namespace ReversiSandbox
                 y += dy;
                 if (out_of_bounds(x, y)) return false;
 
-                if (gameField[x, y] == getOppositePlayer(curPlayer)) stoneBetween = true;
-                if (gameField[x, y] == curPlayer) break;
-                if (gameField[x, y] == Player.Empty) return false;
+                if (gameField[x+y*gameSize] == getOppositePlayer(curPlayer)) stoneBetween = true;
+                if (gameField[x+y*gameSize] == curPlayer) break;
+                if (gameField[x+y*gameSize] == Empty) return false;
             }
             return stoneBetween;
         }
