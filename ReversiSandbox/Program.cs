@@ -4,12 +4,13 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text.RegularExpressions;
 using System.Threading;
+using ReversiSandbox.ReversiBot;
 
 namespace ReversiSandbox // Note: actual namespace depends on the project name.
 {
     class Program
     {
-        const bool randomizedPlayfield = true;
+        const bool randomizedPlayfield = false;
         static void Main(string[] args)                 // Todo : Add Training for Masking
         {
             ComputeShader.testComputeShader();
@@ -17,23 +18,23 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             while (true) { };
             //humanMatch(new BotRandom());
             //return;
-            int sampleSize = 100000;
+            int sampleSize = 666666;
             List<Match> matches = new List<Match>();
             int threadCount = 32;
             Console.WriteLine("Starting " + threadCount.ToString() + " Threads.");
 
             List<Thread> threads = new List<Thread>();
 
-            for (int i = 0; i < threadCount; i++) // Favored for bot starting
+            for (int i = 0; i < threadCount; i++) // Favored for Bot starting
             {
-                Bot bot1 = new BotMasking();
-                //Bot bot2 = new BotNeo(5);
-                Bot bot2 = new BotValueMove();
-                Thread t = new Thread(() => threadMatch(matches,bot1,bot2, sampleSize / threadCount));
+                Bot Bot1 = new BotMasking();
+                //Bot Bot2 = new BotNeo(5);
+                Bot Bot2 = new BotMasking();
+                Thread t = new Thread(() => threadMatch(matches,Bot1,Bot2, sampleSize / threadCount));
                 t.Start();
                 threads.Add(t);
 
-                //matches.Add(simulateMatch(bot1, bot2));
+                //matches.Add(simulateMatch(Bot1, Bot2));
             }
             while(true)
             {
@@ -50,8 +51,8 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             evaluateMatches(matches);
 
             //Console.WriteLine(match.Winner);
-            //Console.WriteLine(match.bot1Score);
-            //Console.WriteLine(match.bot2Score);
+            //Console.WriteLine(match.Bot1Score);
+            //Console.WriteLine(match.Bot2Score);
         }
 
         static void trainMask() // 2Do : https://github.com/Sergio0694/ComputeSharp/wiki/3.-Getting-started-%F0%9F%93%96 📖
@@ -60,7 +61,7 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             int sampleSize = 4096; // Get stuff to mutate more in the beninning 👍
             int threadCount = 32;
 
-            List<Bot> bots = new List<Bot>();
+            List<Bot> Bots = new List<Bot>();
             List<Thread> threads = new List<Thread>();
             List<Match> matches = new List<Match>();
 
@@ -68,9 +69,9 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             {
                 float[,] mask = new float[ReversiGame.gameSize, ReversiGame.gameSize];
                 mask = mutateMask(mask);
-                Bot bot = new BotMasking(mask);
+                Bot Bot = new BotMasking(mask);
 
-                bots.Add(bot);
+                Bots.Add(Bot);
             }
 
             for (int i = 0; i < evolutionSize; i++)
@@ -79,9 +80,9 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
                 {
                     for (int x = 0; x < threadCount; x++)
                     {
-                        Bot bot1 = bots[i];
-                        Bot bot2 = bots[j];
-                        Thread t = new Thread(() => threadMatch(matches, bot1, bot2, sampleSize / threadCount));
+                        Bot Bot1 = Bots[i];
+                        Bot Bot2 = Bots[j];
+                        Thread t = new Thread(() => threadMatch(matches, Bot1, Bot2, sampleSize / threadCount));
                         t.Start();
                         threads.Add(t);
                     }
@@ -90,9 +91,9 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             waitForThreads(threads);
             Dictionary<Bot,int> weights = new Dictionary<Bot, int>();
 
-            foreach (var bot in bots)
+            foreach (var Bot in Bots)
             {
-                weights[bot] = 0;
+                weights[Bot] = 0;
             }
 
             foreach (Match m in matches)
@@ -107,9 +108,9 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
                 weights[m.Looser]++;
             }
 
-            foreach (var bot in weights)
+            foreach (var Bot in weights)
             {
-                Console.WriteLine(bot.Value);
+                Console.WriteLine(Bot.Value);
             }
 
             Console.WriteLine("Done Evolution");
@@ -170,11 +171,11 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             return oldMask;
         }
 
-        static void threadMatch(List<Match> matches, Bot bot1, Bot bot2, int sampleSize)
+        static void threadMatch(List<Match> matches, Bot Bot1, Bot Bot2, int sampleSize)
         {
             for (int i = 0; i < sampleSize; i++)
             {
-                Match m = simulateMatch(bot1, bot2);
+                Match m = simulateMatch(Bot1, Bot2);
 
                 lock (matches)
                     matches.Add(m);
@@ -192,21 +193,21 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             float tiePercent, winPercent;
 
             var type = typeof(Bot);
-            var bots = AppDomain.CurrentDomain.GetAssemblies()
+            var Bots = AppDomain.CurrentDomain.GetAssemblies()
                 .SelectMany(s => s.GetTypes())
                 .Where(p => type.IsAssignableFrom(p));
 
-            foreach (var bot in bots)
+            foreach (var Bot in Bots)
             {
-                if (bot.IsAbstract) continue;
-                wins[bot]=0;
+                if (Bot.IsAbstract) continue;
+                wins[Bot]=0;
             }
 
             foreach (var match in matches)
             {
-                foreach (var bot in bots)
+                foreach (var Bot in Bots)
                 {
-                    if (bot.IsAbstract)
+                    if (Bot.IsAbstract)
                         continue;
 
                     if (match.Winner == null)
@@ -215,10 +216,10 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
                         break;
                     }
 
-                    if (bot != match.Winner.GetType())
+                    if (Bot != match.Winner.GetType())
                         continue;
 
-                    wins[bot]++;
+                    wins[Bot]++;
                 }
             }
 
@@ -233,7 +234,7 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             Console.WriteLine("---------------------------------------------------------------------");
         }
 
-        static void humanMatch(Bot bot)
+        static void humanMatch(Bot Bot)
         {
             ReversiGame game = new ReversiGame(); // X = Human, O = Bot
 
@@ -258,9 +259,9 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
 
                 game.switchPlayer();
 
-                Position botMove = bot.generateMove(game.gameField, game.getPossibleMoves(), game.curPlayer);
-                Console.WriteLine("Bots move : " + positionToString(botMove));
-                game.move(botMove);
+                Position BotMove = Bot.generateMove(game.gameField, game.getPossibleMoves(), game.curPlayer);
+                Console.WriteLine("Bots move : " + positionToString(BotMove));
+                game.move(BotMove);
 
                 game.printGameField();
 
@@ -270,7 +271,7 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             }
         }
 
-        static Match simulateMatch(Bot bot1, Bot bot2)
+        static Match simulateMatch(Bot Bot1, Bot Bot2)
         {
             ReversiGame game;
             if(randomizedPlayfield)
@@ -278,58 +279,58 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             else
                 game = new ReversiGame();
 
-            Position botMove;
+            Position BotMove;
 
             Random r = new Random();
             bool reverse = r.Next(0,2)==1?true:false;
 
             if(reverse)
             {
-                Bot buffer = bot1;
-                bot1 = bot2;
-                bot2 = buffer;
+                Bot buffer = Bot1;
+                Bot1 = Bot2;
+                Bot2 = buffer;
             }
 
             while (true)
             {
-                botMove = bot1.generateMove(game.gameField,game.getPossibleMoves(),game.curPlayer);
-                game.move(botMove);
+                BotMove = Bot1.generateMove(game.gameField,game.getPossibleMoves(),game.curPlayer);
+                game.move(BotMove);
                 game.switchPlayer();
-                //Console.WriteLine(bot1.ToString() + " move : " + positionToString(botMove));
+                //Console.WriteLine(Bot1.ToString() + " move : " + positionToString(BotMove));
                 //game.printGameField();
                 if (game.isEnded()) break;
 
-                botMove = bot2.generateMove(game.gameField, game.getPossibleMoves(), game.curPlayer);
-                game.move(botMove);
+                BotMove = Bot2.generateMove(game.gameField, game.getPossibleMoves(), game.curPlayer);
+                game.move(BotMove);
                 game.switchPlayer();
-                //Console.WriteLine(bot2.ToString() + " move : " + positionToString(botMove));
+                //Console.WriteLine(Bot2.ToString() + " move : " + positionToString(BotMove));
                 //game.printGameField();
                 if (game.isEnded()) break;
             }
-            int bot1Score = ReversiGame.count_stones(game, ReversiGame.Human);
-            int bot2Score = ReversiGame.count_stones(game, ReversiGame.Bot);
-            //Console.WriteLine("Bot1's Score : " + (bot1Score - bot2Score).ToString());
-            //Console.WriteLine("Bot2's Score : " + (bot2Score - bot1Score).ToString());
+            int Bot1Score = ReversiGame.count_stones(game, ReversiGame.Human);
+            int Bot2Score = ReversiGame.count_stones(game, ReversiGame.Bot);
+            //Console.WriteLine("Bot1's Score : " + (Bot1Score - Bot2Score).ToString());
+            //Console.WriteLine("Bot2's Score : " + (Bot2Score - Bot1Score).ToString());
 
             Match match = new Match();
-            match.bot1 = bot1;
-            match.bot2 = bot2;
-            match.bot1Score = bot1Score;
-            match.bot2Score = bot2Score;
+            match.bot1 = Bot1;
+            match.bot2 = Bot2;
+            match.bot1Score = Bot1Score;
+            match.bot2Score = Bot2Score;
 
-            if (bot1Score > bot2Score)
+            if (Bot1Score > Bot2Score)
             {
                 //Console.WriteLine("Bot1 Won!");
-                match.Winner = bot1;
-                match.Looser = bot2;
+                match.Winner = Bot1;
+                match.Looser = Bot2;
             }
-            else if (bot2Score > bot1Score)
+            else if (Bot2Score > Bot1Score)
             {
                 //Console.WriteLine("Bot2 Won!");
-                match.Winner = bot2;
-                match.Looser = bot1;
+                match.Winner = Bot2;
+                match.Looser = Bot1;
             }
-            else if (bot1Score == bot2Score)
+            else if (Bot1Score == Bot2Score)
             {
                 //Console.WriteLine("Tie!");
                 match.Winner = null;

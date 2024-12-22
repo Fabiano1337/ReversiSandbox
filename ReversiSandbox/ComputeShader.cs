@@ -2,6 +2,7 @@
 using ComputeSharp.Resources;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -10,6 +11,8 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using static System.Runtime.InteropServices.JavaScript.JSType;
+using ReversiSandbox.ReversiBot;
+using System.Security.Cryptography;
 
 namespace ReversiSandbox
 {
@@ -17,11 +20,118 @@ namespace ReversiSandbox
     {
         [ThreadGroupSize(DefaultThreadGroupSizes.X)]
         [GeneratedComputeShaderDescriptor]
-        public readonly partial struct MultiplyByTwo(ReadWriteBuffer<int> buffer) : IComputeShader
+        public readonly partial struct FlipPlayers(ReadWriteBuffer<int> players) : IComputeShader
         {
             public void Execute()
             {
-                buffer[ThreadIds.X] *= 2;
+                players[ThreadIds.X] = ReversiGame.getOppositePlayer(players[ThreadIds.X]);
+            }
+        }
+
+        [ThreadGroupSize(DefaultThreadGroupSizes.X)]
+        [GeneratedComputeShaderDescriptor]
+        public readonly partial struct botMasking(ReadWriteBuffer<int> gameField, ReadWriteBuffer<int> players, ReadWriteBuffer<int> moves, ReadWriteBuffer<int> movesLength, ReadWriteBuffer<float> weights, ReadWriteBuffer<int> move) : IComputeShader
+        {
+            public void Execute()
+            {
+                int gameIndex = ThreadIds.X;
+                int player = players[gameIndex];
+
+                Algorithm(player,gameIndex);
+            }
+
+            public void Algorithm(int player,int gameIndex)
+            {
+                int bestMoveX = 0;
+                int bestMoveY = 0;
+                float bestScore = 0;
+
+                for (int i = 0; i < movesLength[gameIndex] / 2; i++)
+                {
+                    var x = moves[i * 2 + gameIndex * ReversiGame.gameSize * ReversiGame.gameSize * 2];
+                    var y = moves[i * 2 + 1 + gameIndex * ReversiGame.gameSize * ReversiGame.gameSize * 2];
+
+                    float score = weights[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] * getTilesCaptured(x, y, player,gameIndex);
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        bestMoveX = x;
+                        bestMoveY = y;
+                    }
+                }
+                move[gameIndex*2] = bestMoveX;
+                move[gameIndex*2+1] = bestMoveY;
+            }
+
+            int getTilesCaptured(int x,int y, int p, int gameIndex)
+            {
+                int count = 0;
+
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        if (dx == 0 && dy == 0) continue;
+                        count += count_dir(p, x, y, dx, dy, gameIndex);
+                    }
+                }
+
+                return count;
+            }
+
+            int count_dir(int curPlayer, int x, int y, int dx, int dy, int gameIndex)
+            {
+                int count = 0;
+                if (!legal_dir(curPlayer, x, y, dx, dy, gameIndex)) return 0;
+
+                while (true)
+                {
+                    x += dx;
+                    y += dy;
+
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == ReversiGame.Empty)
+                        return count;
+
+                    if (out_of_bounds(x, y))
+                        return count;
+
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == curPlayer)
+                        return count;
+
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == ReversiGame.Human)
+                        count++;
+                    else if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == ReversiGame.Bot)
+                        count++;
+                }
+            }
+
+            ComputeSharp.Bool legal_dir(int player, int x, int y, int dx, int dy, int gameIndex)
+            {
+                ComputeSharp.Bool stoneBetween = false;
+
+                while (true)
+                {
+                    x += dx;
+                    y += dy;
+                    if (out_of_bounds(x, y)) return false;
+
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == ReversiGame.getOppositePlayer(player)) stoneBetween = true;
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == player) break;
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == ReversiGame.Empty) return false;
+                }
+
+                return stoneBetween;
+            }
+
+            ComputeSharp.Bool out_of_bounds(int x, int y)
+            {
+                x = x % ReversiGame.gameSize;
+                y = y % ReversiGame.gameSize;
+
+                if (x < 0 || x >= ReversiGame.gameSize) return true;
+                if (y < 0 || y >= ReversiGame.gameSize) return true;
+
+                return false;
             }
         }
 
@@ -209,11 +319,42 @@ namespace ReversiSandbox
 
         const bool randomizedPlayfield = false;
 
-        static Match simulateMatch(Bot bot1, Bot bot2, int matchCount = 100000)
-        {
-            ReversiGame[] games = new ReversiGame[matchCount];
+        static ReadWriteBuffer<int>[] gameFieldBufferStack, playerBufferStack, possibleMovesBufferStack, possibleMovesLengthBufferStack, movesBufferStack;
+        static ReadWriteBuffer<float>[] weightsBufferStack;
+        static int stackCounter = 0;
+        static int incommingBuffers = 0;
+        const int bufferSize = 3;
 
-            for (int i = 0; i < matchCount; i++)
+        static ReadWriteBuffer<int> gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer, movesBuffer;
+        static ReadWriteBuffer<float> weightsBuffer;
+        
+        static void bufferThreadAllocator(int parallelCount)
+        {
+            while (true)
+            {
+                while (bufferSize < (stackCounter + incommingBuffers + 1)) { }
+
+                Thread t;
+                t = new Thread(() => calculateBuffer(parallelCount));
+                t.Start();
+
+                incommingBuffers++;
+            }
+        }
+
+        static void calculateBuffer(int parallelCount)
+        {
+            //Reserve Memory for Games
+            int[] gameFields = new int[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize];
+            int[] players = new int[parallelCount];
+            int[] moves = new int[parallelCount * 2];
+            int[] possibleMoves = new int[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize * 2];
+            int[] possibleMovesLength = new int[parallelCount];
+            float[] weights = new float[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize];
+
+            ReversiGame[] games = new ReversiGame[parallelCount];
+
+            for (int i = 0; i < parallelCount; i++)
             {
                 if (randomizedPlayfield)
                     games[i] = new ReversiGame(ReversiGame.generateRandomGameField());
@@ -221,90 +362,142 @@ namespace ReversiSandbox
                     games[i] = new ReversiGame();
             }
 
-            //Reserve Memory for Games
-            int[] gameFields = new int[matchCount * ReversiGame.gameSize * ReversiGame.gameSize];
-            int[] players = new int[matchCount];
-            int[] moves = new int[matchCount * 2];
-            int[] possibleMoves = new int[matchCount * ReversiGame.gameSize * ReversiGame.gameSize * 2];
-            int[] possibleMovesLength = new int[matchCount];
-
-            //Define Buffers
-            ReadWriteBuffer<int> gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer;
-
             //Copy Game states
-            for (int i = 0; i < matchCount; i++)
+            for (int i = 0; i < parallelCount; i++)
             {
                 ReversiGame game = games[i];
                 players[i] = game.curPlayer;
-                Array.Copy(game.gameField,0,gameFields, i * ReversiGame.gameSize * ReversiGame.gameSize, ReversiGame.gameSize* ReversiGame.gameSize);
+                Array.Copy(game.gameField, 0, gameFields, i * ReversiGame.gameSize * ReversiGame.gameSize, ReversiGame.gameSize * ReversiGame.gameSize);
             }
 
-            for (int j = 0; j < 30; j++)
+            for (int i = 0; i < weights.Length; i++)
+            {
+                weights[i] = 1f;
+            }
+
+            //Create Buffers
+            lock (possibleMovesBufferStack)
+                lock (possibleMovesLengthBufferStack)
+                    lock (playerBufferStack)
+                        lock (gameFieldBufferStack)
+                            lock (movesBufferStack)
+                                lock (weightsBufferStack)
+                                {
+                                    possibleMovesBufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(possibleMoves);
+
+                                    possibleMovesLengthBufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(possibleMovesLength);
+
+                                    playerBufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(players);
+
+                                    gameFieldBufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(gameFields);
+
+                                    movesBufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(moves);
+
+                                    weightsBufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(weights);
+                                }
+            stackCounter++;
+            incommingBuffers--;
+        }
+
+        static void popBufferStack()
+        {
+            lock (possibleMovesBufferStack)
+                lock (possibleMovesLengthBufferStack)
+                    lock (playerBufferStack)
+                        lock (gameFieldBufferStack)
+                            lock (movesBufferStack)
+                                lock (weightsBufferStack)
+                                {
+                                    possibleMovesBuffer = possibleMovesBufferStack[stackCounter - 1];
+
+                                    possibleMovesLengthBuffer = possibleMovesLengthBufferStack[stackCounter - 1];
+
+                                    playerBuffer = playerBufferStack[stackCounter - 1];
+
+                                    gameFieldBuffer = gameFieldBufferStack[stackCounter - 1];
+
+                                    movesBuffer = movesBufferStack[stackCounter - 1];
+
+                                    weightsBuffer = weightsBufferStack[stackCounter - 1];
+                                }
+            stackCounter--;
+        }
+
+        static Match simulateMatch(Bot bot1, Bot bot2, int parallelCount = 3000000, int seriesCount = 5)
+        {
+            Stopwatch fullTimer, stepTimer;
+            fullTimer = Stopwatch.StartNew();
+            stepTimer = Stopwatch.StartNew();
+
+            Thread t;
+            t = new Thread(() => bufferThreadAllocator(parallelCount));
+            t.Start();
+
+            while (stackCounter == 0)
+            {
+                //Console.WriteLine("Waiting for Buffer generation...");
+                Thread.Sleep(100);
+            }
+
+            for (int j = 0; j < seriesCount; j++)
             {
                 //Create Buffers
-                gameFieldBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(gameFields);
-                playerBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(players);
-                possibleMovesBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(possibleMoves);
-                possibleMovesLengthBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(possibleMovesLength);
+                popBufferStack();
 
-                //Get all Possible moves
-                GraphicsDevice.GetDefault().For(matchCount, new getPossibleMoves(gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer));
+                //Console.WriteLine("Initialization : " + stepTimer.ElapsedMilliseconds + "ms");
+                stepTimer.Restart();
 
-                // Get the data back
-                possibleMovesBuffer.CopyTo(possibleMoves);
-                possibleMovesLengthBuffer.CopyTo(possibleMovesLength);
-
-                //Generate bot movements
-                for (int i = 0; i < matchCount; i++)
+                for (int z = 0; z < ReversiGame.gameSize * ReversiGame.gameSize - 4; z++)
                 {
-                    int movesLength = possibleMovesLength[i];
-                    int[] movesGame = new int[movesLength * 2];
-                    Array.Copy(possibleMoves, ReversiGame.gameSize * ReversiGame.gameSize * 2 * i, movesGame, 0, movesLength * 2);
-                    int[] gameField = new int[ReversiGame.gameSize * ReversiGame.gameSize];
-                    Array.Copy(gameFields, ReversiGame.gameSize * ReversiGame.gameSize * i, gameField, 0, ReversiGame.gameSize * ReversiGame.gameSize);
 
-                    if (movesLength == 0) continue;
+                    //Get all Possible moves
+                    GraphicsDevice.GetDefault().For(parallelCount, new getPossibleMoves(gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer));
 
-                    Position move = new Position();
+                    //Console.WriteLine("Find Possible Moves : " + stepTimer.ElapsedMilliseconds + "ms");
+                    stepTimer.Restart();
 
-                    if (players[i] == ReversiGame.Human)
-                        move = bot1.generateMove(gameField, movesGame, players[i]);
+                    //Console.WriteLine("Data Copying : " + stepTimer.ElapsedMilliseconds + "ms");
+                    stepTimer.Restart();
 
-                    if (players[i] == ReversiGame.Bot)
-                        move = bot2.generateMove(gameField, movesGame, players[i]);
+                    //Generate bot movements
+                    GraphicsDevice.GetDefault().For(parallelCount, new botMasking(gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer, weightsBuffer, movesBuffer));
 
-                    moves[i * 2] = move.x;
-                    moves[i * 2 + 1] = move.y;
+                    //Console.WriteLine("Bot Decision : " + stepTimer.ElapsedMilliseconds + "ms");
+                    stepTimer.Restart();
+
+                    // Run one game tick
+                    GraphicsDevice.GetDefault().For(parallelCount, new simulateMoves(gameFieldBuffer, playerBuffer, movesBuffer));
+
+                    // Flip Players
+                    GraphicsDevice.GetDefault().For(parallelCount, new FlipPlayers(playerBuffer));
+
+                    //Console.WriteLine("Game Tick : " + stepTimer.ElapsedMilliseconds + "ms");
+                    stepTimer.Restart();
                 }
 
-                // Create Buffer
-                ReadWriteBuffer<int> movesBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(moves);
-
-                // Run one game tick
-                GraphicsDevice.GetDefault().For(matchCount, new simulateMoves(gameFieldBuffer, playerBuffer, movesBuffer));
-
+                int[] gameFields = new int[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize];
                 // Get the data back
                 gameFieldBuffer.CopyTo(gameFields);
 
-                // Flip Players
-                for (int i = 0; i < matchCount; i++)
-                    players[i] = ReversiGame.getOppositePlayer(players[i]);
+                // Print Playfields
+                /*for (int i = 0; i < 5; i++)
+                {
+                    int[] gameField = new int[ReversiGame.gameSize * ReversiGame.gameSize];
+                    Array.Copy(gameFields, ReversiGame.gameSize * ReversiGame.gameSize * i, gameField, 0, ReversiGame.gameSize * ReversiGame.gameSize);
+
+                    ReversiGame.printGameField(gameField);
+                    Console.WriteLine("--------");
+                }*/
+
+                while (stackCounter==0)
+                {
+                    Console.WriteLine("Waiting for Buffer generation...");
+                    Thread.Sleep(100);
+                }
+
+                Console.WriteLine("done cycle");
             }
-            
-
-
-
-            // Print Playfields
-            /*for (int i = 0; i < matchCount; i++)
-            {
-                int[] gameField = new int[ReversiGame.gameSize * ReversiGame.gameSize];
-                Array.Copy(gameFields, ReversiGame.gameSize * ReversiGame.gameSize * i, gameField, 0, ReversiGame.gameSize * ReversiGame.gameSize);
-                
-                ReversiGame.printGameField(gameField);
-                Console.WriteLine("--------");
-            }*/
-
-            Console.WriteLine("done");
+            Console.WriteLine("done " + parallelCount*seriesCount + " matches in " + fullTimer.ElapsedMilliseconds + "ms");
 
             while (true) { }
 
@@ -379,6 +572,13 @@ namespace ReversiSandbox
         {
             Bot bot1 = new BotRandom();
             Bot bot2 = new BotRandom();
+
+            gameFieldBufferStack = new ReadWriteBuffer<int>[bufferSize];
+            playerBufferStack = new ReadWriteBuffer<int>[bufferSize];
+            possibleMovesBufferStack = new ReadWriteBuffer<int>[bufferSize];
+            possibleMovesLengthBufferStack = new ReadWriteBuffer<int>[bufferSize];
+            movesBufferStack = new ReadWriteBuffer<int>[bufferSize];
+            weightsBufferStack = new ReadWriteBuffer<float>[bufferSize];
 
             simulateMatch(bot1, bot2);
 
