@@ -24,7 +24,8 @@ namespace ReversiSandbox
 
         public override Position generateMove(ReversiGame game)
         {
-            var moves = game.getPossibleMoves();
+            return new Position() { x = 0, y = 0 };
+            /*var moves = game.getPossibleMoves();
             //if (moves.Count == 1) return moves[0];
             Player p = game.curPlayer;
             Player[,] gameField = game.gameField;
@@ -49,7 +50,7 @@ namespace ReversiSandbox
             //return bestMove;
         }
 
-        private Player[,] cloneArray(Player[,] toClone)
+        /*private Player[,] cloneArray(Player[,] toClone)
         {
             Player[,] newArray = new Player[ReversiGame.gameSize, ReversiGame.gameSize];
 
@@ -124,7 +125,7 @@ namespace ReversiSandbox
             }
 
             return bestMove;
-        }
+        }*/
     }
 
 }
