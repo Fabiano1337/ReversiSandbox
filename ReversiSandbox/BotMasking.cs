@@ -30,16 +30,19 @@ namespace ReversiSandbox
             this.weights = weights;
         }
 
-        public override Position generateMove(ReversiGame game)
+        public override Position generateMove(int[] gameField, int[] moves, int player)
         {
-            var moves = game.getPossibleMoves();
-            //Dictionary<Position, int> scoreList = new Dictionary<Position, int>();
-            Position bestMove = moves[0];
+            Position bestMove = new Position() { x = moves[0], y = moves[1] };
             float bestScore = 0;
-            foreach (var move in moves)
+
+            for (int i = 0; i < moves.Length/2; i++)
             {
-                float score = weights[move.x, move.y] * ReversiGame.getTilesCaptured(game.gameField, move, game.curPlayer);
-                if(score > bestScore)
+                var x = moves[i * 2];
+                var y = moves[i * 2 + 1];
+                Position move = new Position() { x = x, y = y };
+
+                float score = weights[x, y] * ReversiGame.getTilesCaptured(gameField, move, player);
+                if (score > bestScore)
                 {
                     bestScore = score;
                     bestMove = move;

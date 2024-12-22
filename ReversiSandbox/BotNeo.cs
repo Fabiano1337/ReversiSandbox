@@ -22,7 +22,7 @@ namespace ReversiSandbox
             iterations = i;
         }
 
-        public override Position generateMove(ReversiGame game)
+        public override Position generateMove(int[] gameField, int[] moves, int player)
         {
             return new Position() { x = 0, y = 0 };
             /*var moves = game.getPossibleMoves();

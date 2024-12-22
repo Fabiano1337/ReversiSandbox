@@ -8,6 +8,6 @@ namespace ReversiSandbox
 {
     public abstract class Bot
     {
-        public abstract Position generateMove(ReversiGame game);
+        public abstract Position generateMove(int[] gameField, int[] moves, int player);
     }
 }

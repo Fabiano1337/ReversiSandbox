@@ -258,7 +258,7 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
 
                 game.switchPlayer();
 
-                Position botMove = bot.generateMove(game);
+                Position botMove = bot.generateMove(game.gameField, game.getPossibleMoves(), game.curPlayer);
                 Console.WriteLine("Bots move : " + positionToString(botMove));
                 game.move(botMove);
 
@@ -292,14 +292,14 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
 
             while (true)
             {
-                botMove = bot1.generateMove(game);
+                botMove = bot1.generateMove(game.gameField,game.getPossibleMoves(),game.curPlayer);
                 game.move(botMove);
                 game.switchPlayer();
                 //Console.WriteLine(bot1.ToString() + " move : " + positionToString(botMove));
                 //game.printGameField();
                 if (game.isEnded()) break;
 
-                botMove = bot2.generateMove(game);
+                botMove = bot2.generateMove(game.gameField, game.getPossibleMoves(), game.curPlayer);
                 game.move(botMove);
                 game.switchPlayer();
                 //Console.WriteLine(bot2.ToString() + " move : " + positionToString(botMove));

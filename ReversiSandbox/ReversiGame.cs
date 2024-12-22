@@ -56,7 +56,7 @@ namespace ReversiSandbox
 
             for (int i = 0; i < randomCount; i++)
             {
-                Position botMove = botRandom.generateMove(game);
+                Position botMove = botRandom.generateMove(game.gameField,ReversiGame.getPossibleMoves(game.gameField,game.curPlayer),game.curPlayer);
                 game.move(botMove);
                 game.switchPlayer();
                 if (game.isEnded()) return generateRandomGameField();
@@ -194,7 +194,7 @@ namespace ReversiSandbox
 
         public bool isEnded()
         {
-            if (getPossibleMoves(curPlayer).Count == 0) return true;
+            if (getPossibleMoves(curPlayer).Length == 0) return true;
 
             //if (getPossibleMoves(getOppositePlayer(this)).Count == 0) return true;
 
@@ -209,11 +209,33 @@ namespace ReversiSandbox
                 Console.Write((y + 1).ToString() + "|");
                 for (int x = 0; x < gameSize; x++)
                 {
-                    if (gameField[x+y*gameSize] == Human)
+                    if (gameField[x + y * gameSize] == Human)
                         Console.Write("X");
-                    if (gameField[x+y*gameSize] == Bot)
+                    if (gameField[x + y * gameSize] == Bot)
                         Console.Write("O");
-                    if (gameField[x+y*gameSize] == Empty)
+                    if (gameField[x + y * gameSize] == Empty)
+                        Console.Write("_");
+
+                    Console.Write("|");
+
+                }
+                Console.WriteLine();
+            }
+        }
+
+        public static void printGameField(int[] gameField)
+        {
+            Console.WriteLine(" |A|B|C|D|E|F|G|H|");
+            for (int y = 0; y < gameSize; y++)
+            {
+                Console.Write((y + 1).ToString() + "|");
+                for (int x = 0; x < gameSize; x++)
+                {
+                    if (gameField[x + y * gameSize] == Human)
+                        Console.Write("X");
+                    if (gameField[x + y * gameSize] == Bot)
+                        Console.Write("O");
+                    if (gameField[x + y * gameSize] == Empty)
                         Console.Write("_");
 
                     Console.Write("|");
@@ -242,12 +264,12 @@ namespace ReversiSandbox
             return count;
         }
 
-        public List<Position> getPossibleMoves()
+        public int[] getPossibleMoves()
         {
             return getPossibleMoves(curPlayer);
         }
 
-        public List<Position> getPossibleMoves(int player)
+        public int[] getPossibleMoves(int player)
         {
             List<Position> moves = new List<Position>();
             for (int y = 0; y < gameSize; y++)
@@ -261,10 +283,19 @@ namespace ReversiSandbox
                     }
                 }
             }
-            return moves;
+
+            int[] movesArray = new int[moves.Count * 2];
+
+            for (int i = 0; i < moves.Count; i++)
+            {
+                movesArray[i * 2] = moves[i].x;
+                movesArray[i * 2 + 1] = moves[i].y;
+            }
+
+            return movesArray;
         }
 
-        public static List<Position> getPossibleMoves(int[] gameField, int player)
+        public static int[] getPossibleMoves(int[] gameField, int player)
         {
             List<Position> moves = new List<Position>();
             for (int y = 0; y < gameSize; y++)
@@ -278,12 +309,21 @@ namespace ReversiSandbox
                     }
                 }
             }
-            return moves;
+
+            int[] movesArray = new int[moves.Count * 2];
+
+            for (int i = 0; i < moves.Count; i++)
+            {
+                movesArray[i * 2] = moves[i].x;
+                movesArray[i * 2 + 1] = moves[i].y;
+            }
+
+            return movesArray;
         }
 
         public void printPossibleMoves()
         {
-            List<Position> moves = getPossibleMoves();
+            int[] moves = getPossibleMoves();
             Console.WriteLine(" |A|B|C|D|E|F|G|H|");
             for (int y = 0; y < gameSize; y++)
             {
@@ -298,9 +338,9 @@ namespace ReversiSandbox
                     else if (gameField[x+y*gameSize] == Empty)
                         output = "_";
 
-                    for (int i = 0; i < moves.Count; i++)
+                    for (int i = 0; i < moves.Length/2; i++)
                     {
-                        if (moves[i].x == x && moves[i].y == y) output = "*";
+                        if (moves[i*2] == x && moves[i*2+1] == y) output = "*";
                     }
 
                     Console.Write(output+"|");

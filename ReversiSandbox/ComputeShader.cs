@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -24,9 +25,9 @@ namespace ReversiSandbox
             }
         }
 
-        [ThreadGroupSize(DefaultThreadGroupSizes.XY)]
+        [ThreadGroupSize(DefaultThreadGroupSizes.X)]
         [GeneratedComputeShaderDescriptor]
-        public readonly partial struct getPossibleMoves(ReadWriteBuffer<int> gameBuffer, int player, ReadWriteBuffer<int> moves) : IComputeShader
+        public readonly partial struct getPossibleMoves(ReadWriteBuffer<int> gameField, ReadWriteBuffer<int> players, ReadWriteBuffer<int> moves, ReadWriteBuffer<int> movesLength) : IComputeShader
         {
             private const int Empty = 0;
             private const int Human = 1;
@@ -34,18 +35,29 @@ namespace ReversiSandbox
 
             public void Execute()
             {
-                int gameX = ThreadIds.X % 8;
-                int gameY = ThreadIds.Y % 8;
-                if (isMoveValid(player, gameX, gameY))
+                int gameIndex = ThreadIds.X;
+                int index = 0;
+                int player = players[gameIndex];
+                movesLength[gameIndex] = 0;
+
+                for (int x = 0; x < ReversiGame.gameSize; x++)
                 {
-                    moves[ThreadIds.X + ThreadIds.Y * ReversiGame.gameSize * 2] = ThreadIds.X;
-                    moves[ThreadIds.X + ThreadIds.Y * ReversiGame.gameSize * 2 + 1] = ThreadIds.Y;
+                    for (int y = 0; y < ReversiGame.gameSize; y++)
+                    {
+                        if (isMoveValid(player, x, y, gameIndex))
+                        {
+                            moves[gameIndex * ReversiGame.gameSize * ReversiGame.gameSize * 2 + index] = x;
+                            moves[gameIndex * ReversiGame.gameSize * ReversiGame.gameSize * 2 + index + 1] = y;
+                            index += 2;
+                            movesLength[gameIndex] += 1;
+                        }
+                    }
                 }
             }
 
-            ComputeSharp.Bool isMoveValid(int player, int posx, int posy)
+            ComputeSharp.Bool isMoveValid(int player, int posx, int posy, int gameIndex)
             {
-                if (gameBuffer[posx + posy * ReversiGame.gameSize] != Empty)
+                if (gameField[(posx + posy * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] != Empty)
                     return false;
 
                 for (int dy = -1; dy <= 1; dy++)
@@ -53,13 +65,13 @@ namespace ReversiSandbox
                     for (int dx = -1; dx <= 1; dx++)
                     {
                         if (dx == 0 && dy == 0) continue;
-                        if (legal_dir(player, posx, posy, dx, dy)) return true;
+                        if (legal_dir(player, posx, posy, dx, dy, gameIndex)) return true;
                     }
                 }
                 return false;
             }
 
-            ComputeSharp.Bool legal_dir(int player, int x, int y, int dx, int dy)
+            ComputeSharp.Bool legal_dir(int player, int x, int y, int dx, int dy, int gameIndex)
             {
                 ComputeSharp.Bool stoneBetween = false;
 
@@ -69,15 +81,19 @@ namespace ReversiSandbox
                     y += dy;
                     if (out_of_bounds(x, y)) return false;
 
-                    if (gameBuffer[x + y * ReversiGame.gameSize] == ReversiGame.getOppositePlayer(player)) stoneBetween = true;
-                    if (gameBuffer[x + y * ReversiGame.gameSize] == player) break;
-                    if (gameBuffer[x + y * ReversiGame.gameSize] == Empty) return false;
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == ReversiGame.getOppositePlayer(player)) stoneBetween = true;
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == player) break;
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == Empty) return false;
                 }
+
                 return stoneBetween;
             }
 
             ComputeSharp.Bool out_of_bounds(int x, int y)
             {
+                x = x % ReversiGame.gameSize;
+                y = y % ReversiGame.gameSize;
+
                 if (x < 0 || x >= ReversiGame.gameSize) return true;
                 if (y < 0 || y >= ReversiGame.gameSize) return true;
 
@@ -108,7 +124,7 @@ namespace ReversiSandbox
 
             void reverse(int curPlayer, int x, int y,int gameIndex)
             {
-                gameField[(x + y * ReversiGame.gameSize) * (gameIndex+1)] = curPlayer;
+                gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] = curPlayer;
 
                 for (int dy = -1; dy <= 1; dy++)
                 {
@@ -129,20 +145,25 @@ namespace ReversiSandbox
                     x += dx;
                     y += dy;
 
-                    if (gameField[(x + y * ReversiGame.gameSize) * (gameIndex + 1)] == Empty) return;
-                    if (out_of_bounds(x, y)) return;
-                    if (gameField[(x + y * ReversiGame.gameSize) * (gameIndex + 1)] == curPlayer) return;
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == Empty)
+                        return;
 
-                    if (gameField[(x + y * ReversiGame.gameSize) * (gameIndex + 1)] == Human)
-                        gameField[(x + y * ReversiGame.gameSize) * (gameIndex + 1)] = Bot;
-                    else if (gameField[(x + y * ReversiGame.gameSize) * (gameIndex + 1)] == Bot)
-                        gameField[(x + y * ReversiGame.gameSize) * (gameIndex + 1)] = Human;
+                    if (out_of_bounds(x, y))
+                        return;
+
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == curPlayer)
+                        return;
+
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == Human)
+                        gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] = Bot;
+                    else if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == Bot)
+                        gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] = Human;
                 }
             }
 
             ComputeSharp.Bool isMoveValid(int player, int x, int y, int gameIndex)
             {
-                if (gameField[(x + y * ReversiGame.gameSize) * (gameIndex + 1)] != Empty)
+                if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] != Empty)
                     return false;
 
                 for (int dy = -1; dy <= 1; dy++)
@@ -166,9 +187,9 @@ namespace ReversiSandbox
                     y += dy;
                     if (out_of_bounds(x, y)) return false;
 
-                    if (gameField[(x + y * ReversiGame.gameSize) * (gameIndex + 1)] == ReversiGame.getOppositePlayer(player)) stoneBetween = true; // This Line is not working...
-                    if (gameField[(x + y * ReversiGame.gameSize) * (gameIndex + 1)] == player) break;
-                    if (gameField[(x + y * ReversiGame.gameSize) * (gameIndex + 1)] == Empty) return false;
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == ReversiGame.getOppositePlayer(player)) stoneBetween = true;
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == player) break;
+                    if (gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] == Empty) return false;
                 }
 
                 return stoneBetween;
@@ -176,8 +197,8 @@ namespace ReversiSandbox
 
             ComputeSharp.Bool out_of_bounds(int x, int y)
             {
-                x = x % 8;
-                y = y % 8;
+                x = x % ReversiGame.gameSize;
+                y = y % ReversiGame.gameSize;
 
                 if (x < 0 || x >= ReversiGame.gameSize) return true;
                 if (y < 0 || y >= ReversiGame.gameSize) return true;
@@ -186,20 +207,31 @@ namespace ReversiSandbox
             }
         }
 
-        static Match simulateMatch(Bot bot1, Bot bot2)
+        const bool randomizedPlayfield = false;
+
+        static Match simulateMatch(Bot bot1, Bot bot2, int matchCount = 100000)
         {
-            int matchCount = 1;
             ReversiGame[] games = new ReversiGame[matchCount];
 
             for (int i = 0; i < matchCount; i++)
             {
-                games[i] = new ReversiGame();
+                if (randomizedPlayfield)
+                    games[i] = new ReversiGame(ReversiGame.generateRandomGameField());
+                else
+                    games[i] = new ReversiGame();
             }
 
+            //Reserve Memory for Games
             int[] gameFields = new int[matchCount * ReversiGame.gameSize * ReversiGame.gameSize];
             int[] players = new int[matchCount];
-            int[] moves = new int[matchCount*2];
+            int[] moves = new int[matchCount * 2];
+            int[] possibleMoves = new int[matchCount * ReversiGame.gameSize * ReversiGame.gameSize * 2];
+            int[] possibleMovesLength = new int[matchCount];
 
+            //Define Buffers
+            ReadWriteBuffer<int> gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer;
+
+            //Copy Game states
             for (int i = 0; i < matchCount; i++)
             {
                 ReversiGame game = games[i];
@@ -207,35 +239,74 @@ namespace ReversiSandbox
                 Array.Copy(game.gameField,0,gameFields, i * ReversiGame.gameSize * ReversiGame.gameSize, ReversiGame.gameSize* ReversiGame.gameSize);
             }
 
-            for (int i = 0; i < matchCount; i++)
+            for (int j = 0; j < 30; j++)
             {
-                moves[i * 2] = 3;
-                moves[i * 2 + 1] = 2;
+                //Create Buffers
+                gameFieldBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(gameFields);
+                playerBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(players);
+                possibleMovesBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(possibleMoves);
+                possibleMovesLengthBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(possibleMovesLength);
+
+                //Get all Possible moves
+                GraphicsDevice.GetDefault().For(matchCount, new getPossibleMoves(gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer));
+
+                // Get the data back
+                possibleMovesBuffer.CopyTo(possibleMoves);
+                possibleMovesLengthBuffer.CopyTo(possibleMovesLength);
+
+                //Generate bot movements
+                for (int i = 0; i < matchCount; i++)
+                {
+                    int movesLength = possibleMovesLength[i];
+                    int[] movesGame = new int[movesLength * 2];
+                    Array.Copy(possibleMoves, ReversiGame.gameSize * ReversiGame.gameSize * 2 * i, movesGame, 0, movesLength * 2);
+                    int[] gameField = new int[ReversiGame.gameSize * ReversiGame.gameSize];
+                    Array.Copy(gameFields, ReversiGame.gameSize * ReversiGame.gameSize * i, gameField, 0, ReversiGame.gameSize * ReversiGame.gameSize);
+
+                    if (movesLength == 0) continue;
+
+                    Position move = new Position();
+
+                    if (players[i] == ReversiGame.Human)
+                        move = bot1.generateMove(gameField, movesGame, players[i]);
+
+                    if (players[i] == ReversiGame.Bot)
+                        move = bot2.generateMove(gameField, movesGame, players[i]);
+
+                    moves[i * 2] = move.x;
+                    moves[i * 2 + 1] = move.y;
+                }
+
+                // Create Buffer
+                ReadWriteBuffer<int> movesBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(moves);
+
+                // Run one game tick
+                GraphicsDevice.GetDefault().For(matchCount, new simulateMoves(gameFieldBuffer, playerBuffer, movesBuffer));
+
+                // Get the data back
+                gameFieldBuffer.CopyTo(gameFields);
+
+                // Flip Players
+                for (int i = 0; i < matchCount; i++)
+                    players[i] = ReversiGame.getOppositePlayer(players[i]);
             }
+            
 
-            //int[] gameField = new int[ReversiGame.gameSize * ReversiGame.gameSize];
-            //int[] moves = new int[ReversiGame.gameSize * ReversiGame.gameSize * 2 * matchCount];
 
-            using ReadWriteBuffer<int> gameFieldBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(gameFields);
-            using ReadWriteBuffer<int> playerBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(players);
-            using ReadWriteBuffer<int> movesBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(moves);
 
-            // Launch the shader
-            GraphicsDevice.GetDefault().For(matchCount, new simulateMoves(gameFieldBuffer, playerBuffer, movesBuffer));
-
-            // Get the data back
-            gameFieldBuffer.CopyTo(gameFields);
-
-            for (int i = 0; i < matchCount*8*8; i++)
+            // Print Playfields
+            /*for (int i = 0; i < matchCount; i++)
             {
-                Console.WriteLine(gameFields[i]);
-            }
+                int[] gameField = new int[ReversiGame.gameSize * ReversiGame.gameSize];
+                Array.Copy(gameFields, ReversiGame.gameSize * ReversiGame.gameSize * i, gameField, 0, ReversiGame.gameSize * ReversiGame.gameSize);
+                
+                ReversiGame.printGameField(gameField);
+                Console.WriteLine("--------");
+            }*/
 
             Console.WriteLine("done");
 
-            const bool randomizedPlayfield = true;
-
-            
+            while (true) { }
 
             /*if (randomizedPlayfield)
                 game = new ReversiGame(ReversiGame.generateRandomGameField());

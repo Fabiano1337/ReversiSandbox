@@ -8,13 +8,18 @@ namespace ReversiSandbox
 {
     public class BotRandom : Bot
     {
-        public override Position generateMove(ReversiGame game)
+        public override Position generateMove(int[] gameField, int[] moves, int player)
         {
-            var moves = game.getPossibleMoves();
-            Random r = new Random();
-            int moveIndex = r.Next(0, moves.Count);
+            Position move;
 
-            return moves[moveIndex];
+            Random r = new Random();
+            int moveIndex = r.Next(0, moves.Count() / 2);
+
+            move = new Position();
+            move.x = moves[moveIndex*2];
+            move.y = moves[moveIndex*2+1];
+
+            return move;
         }
     }
 }
