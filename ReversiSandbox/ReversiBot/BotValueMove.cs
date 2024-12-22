@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ReversiSandbox
+namespace ReversiSandbox.ReversiBot
 {
-    public class BotValueMove : Bot 
+    public class BotValueMove : Bot
     {
         // Value Moves based on number of enemy tiles captured
 

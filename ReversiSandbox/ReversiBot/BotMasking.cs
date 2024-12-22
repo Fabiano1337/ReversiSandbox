@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ReversiSandbox
+namespace ReversiSandbox.ReversiBot
 {
-    public class BotMasking : Bot 
+    public class BotMasking : Bot
     {
         // Value Moves based on a weighted mask multiplied by the amount of tiles flipped
 
@@ -22,7 +22,7 @@ namespace ReversiSandbox
 
         public BotMasking()
         {
-            
+
         }
 
         public BotMasking(float[,] weights)
@@ -35,7 +35,7 @@ namespace ReversiSandbox
             Position bestMove = new Position() { x = moves[0], y = moves[1] };
             float bestScore = 0;
 
-            for (int i = 0; i < moves.Length/2; i++)
+            for (int i = 0; i < moves.Length / 2; i++)
             {
                 var x = moves[i * 2];
                 var y = moves[i * 2 + 1];

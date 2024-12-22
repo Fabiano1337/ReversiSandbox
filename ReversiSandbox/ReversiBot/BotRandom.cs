@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ReversiSandbox
+namespace ReversiSandbox.ReversiBot
 {
     public class BotRandom : Bot
     {
@@ -16,8 +16,8 @@ namespace ReversiSandbox
             int moveIndex = r.Next(0, moves.Count() / 2);
 
             move = new Position();
-            move.x = moves[moveIndex*2];
-            move.y = moves[moveIndex*2+1];
+            move.x = moves[moveIndex * 2];
+            move.y = moves[moveIndex * 2 + 1];
 
             return move;
         }
