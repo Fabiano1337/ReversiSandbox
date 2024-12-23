@@ -53,7 +53,7 @@ namespace ReversiSandbox
             ReversiGame game = new ReversiGame();
             Random r = new Random();
             BotRandom botRandom = new BotRandom();
-            int randomCount = r.Next(0, 30);
+            int randomCount = r.Next(5, 10);
 
             for (int i = 0; i < randomCount; i++)
             {

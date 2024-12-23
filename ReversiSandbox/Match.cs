@@ -12,7 +12,10 @@ namespace ReversiSandbox
         public int bot2Score;
         public Bot? bot1;
         public Bot? bot2;
-        public Bot? Winner;
-        public Bot? Looser;
+        public int Winner;
+        public int Looser;
+        public float[] winnerWeight;
+        public float[] looserWeight;
+        public int starter;
     }
 }

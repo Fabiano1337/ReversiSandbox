@@ -10,7 +10,7 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
 {
     class Program
     {
-        const bool randomizedPlayfield = false;
+        const bool randomizedPlayfield = true;
         static void Main(string[] args)                 // Todo : Add Training for Masking
         {
             ComputeShader.testComputeShader();
@@ -18,7 +18,7 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             while (true) { };
             //humanMatch(new BotRandom());
             //return;
-            int sampleSize = 666666;
+            int sampleSize = 100000;
             List<Match> matches = new List<Match>();
             int threadCount = 32;
             Console.WriteLine("Starting " + threadCount.ToString() + " Threads.");
@@ -27,9 +27,9 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
 
             for (int i = 0; i < threadCount; i++) // Favored for Bot starting
             {
-                Bot Bot1 = new BotMasking();
+                Bot Bot1 = new BotRandom();
                 //Bot Bot2 = new BotNeo(5);
-                Bot Bot2 = new BotMasking();
+                Bot Bot2 = new BotRandom();
                 Thread t = new Thread(() => threadMatch(matches,Bot1,Bot2, sampleSize / threadCount));
                 t.Start();
                 threads.Add(t);
@@ -98,14 +98,14 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
 
             foreach (Match m in matches)
             {
-                if (m.Winner == null)
+                if (m.Winner == 0)
                     continue;
 
-                if (m.Looser == null)
+                if (m.Looser == 0)
                     continue;
 
-                weights[m.Winner]++;
-                weights[m.Looser]++;
+                //weights[m.Winner]++;
+                //weights[m.Looser]++;
             }
 
             foreach (var Bot in weights)
@@ -190,9 +190,22 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             Dictionary<Type, int> wins = new Dictionary<Type, int>();
             float tie = 0;
             float gameCount = matches.Count;
-            float tiePercent, winPercent;
+            float tiePercent, bot1Percent, bot2Percent;
+            int bot1Wins = 0, bot2Wins  = 0;
 
-            var type = typeof(Bot);
+            for (int i = 0; i < matches.Count; i++)
+            {
+                if (matches[i].Winner == matches[i].starter)
+                    bot1Wins++;
+
+                if (matches[i].Winner != matches[i].starter)
+                    bot2Wins++;
+
+                if (matches[i].Winner == 0)
+                    tie++;
+            }
+
+            /*var type = typeof(Bot);
             var Bots = AppDomain.CurrentDomain.GetAssemblies()
                 .SelectMany(s => s.GetTypes())
                 .Where(p => type.IsAssignableFrom(p));
@@ -210,7 +223,7 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
                     if (Bot.IsAbstract)
                         continue;
 
-                    if (match.Winner == null)
+                    if (match.Winner == 0)
                     {
                         tie++;
                         break;
@@ -221,15 +234,14 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
 
                     wins[Bot]++;
                 }
-            }
+            }*/
 
+            bot1Percent = bot1Wins * 100f / gameCount;
+            bot2Percent = bot2Wins * 100f / gameCount;
             tiePercent = tie * 100f / gameCount;
-            Console.WriteLine("Tie: " + tiePercent.ToString()+"%");
-            foreach (var item in wins)
-            {
-                winPercent = item.Value*100f / gameCount;
-                Console.WriteLine(item.Key.ToString() + " wins : " + winPercent + "%");
-            }
+            Console.WriteLine("Bot1: " + bot1Percent.ToString() + "%");
+            Console.WriteLine("Bot2: " + bot2Percent.ToString() + "%");
+            Console.WriteLine("Tie: " + tiePercent.ToString() + "%");
 
             Console.WriteLine("---------------------------------------------------------------------");
         }
@@ -321,20 +333,20 @@ namespace ReversiSandbox // Note: actual namespace depends on the project name.
             if (Bot1Score > Bot2Score)
             {
                 //Console.WriteLine("Bot1 Won!");
-                match.Winner = Bot1;
-                match.Looser = Bot2;
+                match.Winner = ReversiGame.Human;
+                match.Looser = ReversiGame.Bot;
             }
             else if (Bot2Score > Bot1Score)
             {
                 //Console.WriteLine("Bot2 Won!");
-                match.Winner = Bot2;
-                match.Looser = Bot1;
+                match.Winner = ReversiGame.Bot;
+                match.Looser = ReversiGame.Human;
             }
             else if (Bot1Score == Bot2Score)
             {
                 //Console.WriteLine("Tie!");
-                match.Winner = null;
-                match.Looser = null;
+                match.Winner = 0;
+                match.Looser = 0;
             }
 
             return match;
