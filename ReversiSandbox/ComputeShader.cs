@@ -36,14 +36,10 @@ namespace ReversiSandbox
             {
                 int gameIndex = ThreadIds.X;
 
-                int me = ReversiGame.Human;
-
-                if (starterBuffer[gameIndex] == 1)
-                    me = ReversiGame.Bot;
+                int me = starterBuffer[gameIndex];
 
                 int score1 = count_stones(me, gameIndex);
                 int score2 = count_stones(ReversiGame.getOppositePlayer(me), gameIndex);
-
 
                 if (score1 > score2)
                 {
@@ -110,9 +106,9 @@ namespace ReversiSandbox
                     //change
                     float score = weights1[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] * getTilesCaptured(x, y, player, gameIndex); ;
 
-                    //if (startingPlayers[gameIndex] == 0) // starting
+                    //if ((player==ReversiGame.Human&&startingPlayers[gameIndex]==1)|| (player == ReversiGame.Bot && startingPlayers[gameIndex] == 2)) // starting
                     //    score = weights1[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] * getTilesCaptured(x, y, player, gameIndex);
-                    //if (startingPlayers[gameIndex] == 1) // second
+                    //if ((player == ReversiGame.Human && startingPlayers[gameIndex] == 2) || (player == ReversiGame.Bot && startingPlayers[gameIndex] == 1)) // second
                     //    score = weights2[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] * getTilesCaptured(x, y, player, gameIndex);
 
 
@@ -220,22 +216,6 @@ namespace ReversiSandbox
 
                 move[gameIndex * 2] = moves[gameIndex * ReversiGame.gameSize * ReversiGame.gameSize * 2 + moveIndex * 2];
                 move[gameIndex * 2 + 1] = moves[gameIndex * ReversiGame.gameSize * ReversiGame.gameSize * 2 + moveIndex * 2 + 1];
-            }
-
-            int getTilesCaptured(int x, int y, int p, int gameIndex)
-            {
-                int count = 0;
-
-                for (int dy = -1; dy <= 1; dy++)
-                {
-                    for (int dx = -1; dx <= 1; dx++)
-                    {
-                        if (dx == 0 && dy == 0) continue;
-                        count += count_dir(p, x, y, dx, dy, gameIndex);
-                    }
-                }
-
-                return count;
             }
 
             int count_dir(int curPlayer, int x, int y, int dx, int dy, int gameIndex)
@@ -628,7 +608,7 @@ namespace ReversiSandbox
             }
 
             randomStopBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(randomStop);
-            startingPlayersBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(startingPlayers);
+            startingPlayersBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(randomizedPlayers);
 
             for (int j = 0; j < seriesCount; j++)
             {
@@ -642,6 +622,10 @@ namespace ReversiSandbox
 
                 //Console.WriteLine("Initialization : " + stepTimer.ElapsedMilliseconds + "ms");
                 stepTimer.Restart();
+
+                int[] gameFieldsFull = new int[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize]; ;
+                int[] gameFieldLocal = new int[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize];
+
                 for (int z = 0; z < (ReversiGame.gameSize * ReversiGame.gameSize - 4) / 2; z++)
                 {
                     int[] randomNumbers = new int[parallelCount];
@@ -653,6 +637,12 @@ namespace ReversiSandbox
 
                     randomBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(randomNumbers);
 
+                    /*gameFieldBuffer.CopyTo(gameFieldsFull);
+
+                    Array.Copy(gameFieldsFull, ReversiGame.gameSize * ReversiGame.gameSize, gameFieldLocal, 0, ReversiGame.gameSize * ReversiGame.gameSize);
+                    ReversiGame.printGameField(gameFieldLocal);
+                    Console.WriteLine("--------");*/
+
                     //Get all Possible moves
                     GraphicsDevice.GetDefault().For(parallelCount, new getPossibleMoves(gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer));
 
@@ -661,6 +651,27 @@ namespace ReversiSandbox
                     //Generate bot1 movements
                     GraphicsDevice.GetDefault().For(parallelCount, new botMasking(gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer, weightsBot1Buffer, weightsBot2Buffer, movesBuffer, startingPlayersBuffer));
                     //GraphicsDevice.GetDefault().For(parallelCount, new botRandom(gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer, randomBuffer, movesBuffer, randomStopBuffer, 999));
+
+                    // Run one game tick
+                    GraphicsDevice.GetDefault().For(parallelCount, new simulateMoves(gameFieldBuffer, playerBuffer, movesBuffer));
+
+                    // Flip Players
+                    GraphicsDevice.GetDefault().For(parallelCount, new FlipPlayers(playerBuffer));
+
+                    /*gameFieldBuffer.CopyTo(gameFieldsFull);
+
+                    Array.Copy(gameFieldsFull, ReversiGame.gameSize * ReversiGame.gameSize, gameFieldLocal, 0, ReversiGame.gameSize * ReversiGame.gameSize);
+                    ReversiGame.printGameField(gameFieldLocal);
+                    Console.WriteLine("--------");*/
+
+                    //Get all Possible moves
+                    GraphicsDevice.GetDefault().For(parallelCount, new getPossibleMoves(gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer));
+
+                    //Need to differentiate Bot1 and Bot2 start
+
+                    //Generate bot2 movements
+                    GraphicsDevice.GetDefault().For(parallelCount, new botMasking(gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer, weightsBot1Buffer, weightsBot2Buffer, movesBuffer, startingPlayersBuffer));
+                    //GraphicsDevice.GetDefault().For(parallelCount, new botRandom(gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer, randomBuffer, movesBuffer, randomStopBuffer, 0));
 
                     // Run one game tick
                     GraphicsDevice.GetDefault().For(parallelCount, new simulateMoves(gameFieldBuffer, playerBuffer, movesBuffer));
@@ -735,7 +746,7 @@ namespace ReversiSandbox
 
         static int[] randomGameFields;
         static int[] randomizedPlayers;
-        static int[] startingPlayers;
+        //static int[] startingPlayers;
 
         public static void testComputeShader()
         {
@@ -753,15 +764,23 @@ namespace ReversiSandbox
             int matchCount = 1000000;
             int parallelCount = 1000000;
             int seriesCount = matchCount / parallelCount;
-            int minRandomCount = 5;
-            int maxRandomCount = 10;
+            int minRandomCount = 8;
+            int maxRandomCount = 16;
 
             Random r = new Random();
 
             int[] randomStop = new int[parallelCount];
+            int start1 = 0, start2 = 0;
             for (int i = 0; i < parallelCount; i++)
             {
-                randomStop[i] = r.Next(minRandomCount, maxRandomCount);
+                int rand = r.Next(minRandomCount, maxRandomCount);
+                if (start2 < start1) rand++;
+                randomStop[i] = rand;
+
+                if (rand % 2 == 0)
+                    start1++;
+                else
+                    start2++;
             }
 
             gameFieldsGenerated = new int[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize];
@@ -790,10 +809,10 @@ namespace ReversiSandbox
                 Array.Copy(game.gameField, 0, randomGameFields, i * ReversiGame.gameSize * ReversiGame.gameSize, ReversiGame.gameSize * ReversiGame.gameSize);
             }
 
-            startingPlayers = new int[parallelCount];
+            //startingPlayers = new int[parallelCount];
             for (int i = 0; i < parallelCount; i++)
             {
-                startingPlayers[i] = r.Next(0, 2);
+                //startingPlayers[i] = r.Next(0, 2);
             }
             //Create Buffers
             possibleMovesBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(possibleMoves);
@@ -837,7 +856,7 @@ namespace ReversiSandbox
             //possibleMovesBuffer.CopyTo(possibleMoves);
 
             // Print Playfields
-            /*for (int i = 0; i < 100; i++)
+            /*for (int i = 0; i < 20; i++)
             {
                 int[] gameField = new int[ReversiGame.gameSize * ReversiGame.gameSize];
                 Array.Copy(randomGameFields, ReversiGame.gameSize * ReversiGame.gameSize * i, gameField, 0, ReversiGame.gameSize * ReversiGame.gameSize);
