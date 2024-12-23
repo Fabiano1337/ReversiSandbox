@@ -104,12 +104,12 @@ namespace ReversiSandbox
                     var y = moves[i * 2 + 1 + gameIndex * ReversiGame.gameSize * ReversiGame.gameSize * 2];
 
                     //change
-                    float score = weights1[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] * getTilesCaptured(x, y, player, gameIndex); ;
+                    float score = 0;
 
-                    //if ((player==ReversiGame.Human&&startingPlayers[gameIndex]==1)|| (player == ReversiGame.Bot && startingPlayers[gameIndex] == 2)) // starting
-                    //    score = weights1[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] * getTilesCaptured(x, y, player, gameIndex);
-                    //if ((player == ReversiGame.Human && startingPlayers[gameIndex] == 2) || (player == ReversiGame.Bot && startingPlayers[gameIndex] == 1)) // second
-                    //    score = weights2[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] * getTilesCaptured(x, y, player, gameIndex);
+                    if ((player==ReversiGame.Human&&startingPlayers[gameIndex]==1)|| (player == ReversiGame.Bot && startingPlayers[gameIndex] == 2)) // starting
+                        score = weights1[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] * getTilesCaptured(x, y, player, gameIndex);
+                    if ((player == ReversiGame.Human && startingPlayers[gameIndex] == 2) || (player == ReversiGame.Bot && startingPlayers[gameIndex] == 1)) // second
+                        score = weights2[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] * getTilesCaptured(x, y, player, gameIndex);
 
 
                     if (score > bestScore)
@@ -512,9 +512,35 @@ namespace ReversiSandbox
             for (int i = 0; i < weightsBot1.Length; i++)
             {
                 weightsBot1[i] = 1f;
-                weightsBot2[i] = 1f;
-                //weightsBot2[i] = r.NextSingle();
+                //weightsBot2[i] = 1f;
+                //weightsBot2[i] = r.NextSingle()*100f;
             }
+
+            /*for (int i = 0; i < parallelCount; i++)
+            {
+                float[,] weights =
+            {   {16f,8f,8f,8f,8f,8f,8f,16f},
+                {8f,1f,1f,1f,1f,1f,1f,8f},
+                {8f,1f,4f,4f,4f,4f,1f,8f},
+                {8f,1f,4f,1f,1f,4f,1f,8f},
+                {8f,1f,4f,1f,1f,4f,1f,8f},
+                {8f,1f,4f,4f,4f,4f,1f,8f},
+                {8f,1f,1f,1f,1f,1f,1f,8f},
+                {16f,8f,8f,8f,8f,8f,8f,16f}};
+
+                float[] linearWeights = new float[8 * 8];
+
+                for (int y = 0; y < 8; y++)
+                {
+                    for (int x = 0; x < 8; x++)
+                    {
+                        linearWeights[x + y * 8] = weights[x, y];
+                        //linearWeights[x + y * 8] = 0;
+                    }
+                }
+
+                Array.Copy(linearWeights, 0, weightsBot2, i * 8 * 8, 8 * 8);
+            }*/
 
             //Create Buffers
             lock (possibleMovesBufferStack)
@@ -537,7 +563,7 @@ namespace ReversiSandbox
 
                                         weightsBot1BufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(weightsBot1);
 
-                                        weightsBot2BufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(weightsBot1);
+                                        weightsBot2BufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(weightsBot2);
 
                                         stackCounter++;
 
