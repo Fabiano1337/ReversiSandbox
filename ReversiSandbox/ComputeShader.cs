@@ -106,7 +106,7 @@ namespace ReversiSandbox
                     //change
                     float score = 0;
 
-                    if ((player==ReversiGame.Human&&startingPlayers[gameIndex]==1)|| (player == ReversiGame.Bot && startingPlayers[gameIndex] == 2)) // starting
+                    if ((player == ReversiGame.Human && startingPlayers[gameIndex] == 1) || (player == ReversiGame.Bot && startingPlayers[gameIndex] == 2)) // starting
                         score = weights1[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] * getTilesCaptured(x, y, player, gameIndex);
                     if ((player == ReversiGame.Human && startingPlayers[gameIndex] == 2) || (player == ReversiGame.Bot && startingPlayers[gameIndex] == 1)) // second
                         score = weights2[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] * getTilesCaptured(x, y, player, gameIndex);
@@ -356,16 +356,16 @@ namespace ReversiSandbox
             {
                 int gameIndex = ThreadIds.X;
                 int player = players[gameIndex];
-                int moveX = moves[gameIndex*2];
-                int moveY = moves[gameIndex*2+1];
+                int moveX = moves[gameIndex * 2];
+                int moveY = moves[gameIndex * 2 + 1];
 
                 if (!isMoveValid(player, moveX, moveY, gameIndex))
                     return;
 
-                reverse(player,moveX,moveY,gameIndex);
+                reverse(player, moveX, moveY, gameIndex);
             }
 
-            void reverse(int curPlayer, int x, int y,int gameIndex)
+            void reverse(int curPlayer, int x, int y, int gameIndex)
             {
                 gameField[(x + y * ReversiGame.gameSize) + (gameIndex * ReversiGame.gameSize * ReversiGame.gameSize)] = curPlayer;
 
@@ -458,7 +458,17 @@ namespace ReversiSandbox
 
         static ReadWriteBuffer<int> gameFieldBuffer, playerBuffer, possibleMovesBuffer, possibleMovesLengthBuffer, movesBuffer;
         static ReadWriteBuffer<float> weightsBot1Buffer, weightsBot2Buffer;
-        
+
+        static float[] startWeights =
+               {16f,8f,8f,8f,8f,8f,8f,16f,
+                8f,1f,1f,1f,1f,1f,1f,8f,
+                8f,1f,4f,4f,4f,4f,1f,8f,
+                8f,1f,4f,1f,1f,4f,1f,8f,
+                8f,1f,4f,1f,1f,4f,1f,8f,
+                8f,1f,4f,4f,4f,4f,1f,8f,
+                8f,1f,1f,1f,1f,1f,1f,8f,
+                16f,8f,8f,8f,8f,8f,8f,16f};
+
         static void bufferThreadAllocator(int parallelCount)
         {
             while (true)
@@ -470,8 +480,13 @@ namespace ReversiSandbox
                 t.Start();
 
                 incommingBuffers++;
+
+                Thread.Sleep(200);
             }
         }
+
+        static float[] weight1Cache;
+        static float[] weight2Cache;
 
         static void calculateBuffer(int parallelCount)
         {
@@ -481,8 +496,6 @@ namespace ReversiSandbox
             int[] moves = new int[parallelCount * 2];
             int[] possibleMoves = new int[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize * 2];
             int[] possibleMovesLength = new int[parallelCount];
-            float[] weightsBot1 = new float[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize];
-            float[] weightsBot2 = new float[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize];
 
             ReversiGame[] games = new ReversiGame[parallelCount];
 
@@ -508,40 +521,6 @@ namespace ReversiSandbox
                 }
             }
 
-            Random r = new Random();
-            for (int i = 0; i < weightsBot1.Length; i++)
-            {
-                weightsBot1[i] = 1f;
-                //weightsBot2[i] = 1f;
-                //weightsBot2[i] = r.NextSingle()*100f;
-            }
-
-            /*for (int i = 0; i < parallelCount; i++)
-            {
-                float[,] weights =
-            {   {16f,8f,8f,8f,8f,8f,8f,16f},
-                {8f,1f,1f,1f,1f,1f,1f,8f},
-                {8f,1f,4f,4f,4f,4f,1f,8f},
-                {8f,1f,4f,1f,1f,4f,1f,8f},
-                {8f,1f,4f,1f,1f,4f,1f,8f},
-                {8f,1f,4f,4f,4f,4f,1f,8f},
-                {8f,1f,1f,1f,1f,1f,1f,8f},
-                {16f,8f,8f,8f,8f,8f,8f,16f}};
-
-                float[] linearWeights = new float[8 * 8];
-
-                for (int y = 0; y < 8; y++)
-                {
-                    for (int x = 0; x < 8; x++)
-                    {
-                        linearWeights[x + y * 8] = weights[x, y];
-                        //linearWeights[x + y * 8] = 0;
-                    }
-                }
-
-                Array.Copy(linearWeights, 0, weightsBot2, i * 8 * 8, 8 * 8);
-            }*/
-
             //Create Buffers
             lock (possibleMovesBufferStack)
                 lock (possibleMovesLengthBufferStack)
@@ -561,9 +540,13 @@ namespace ReversiSandbox
 
                                         movesBufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(moves);
 
-                                        weightsBot1BufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(weightsBot1);
+                                        lock (weight1Cache)
+                                            lock (weight2Cache)
+                                            {
+                                                weightsBot1BufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(weight1Cache);
 
-                                        weightsBot2BufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(weightsBot2);
+                                                weightsBot2BufferStack[stackCounter] = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(weight2Cache);
+                                            }
 
                                         stackCounter++;
 
@@ -599,7 +582,32 @@ namespace ReversiSandbox
                                     }
         }
 
-        static Match[] simulateMatches(Bot bot1, Bot bot2, int parallelCount = 30000, int seriesCount = 5)
+        static void clearBuffers()
+        {
+            gameFieldBufferStack = new ReadWriteBuffer<int>[bufferSize];
+            playerBufferStack = new ReadWriteBuffer<int>[bufferSize];
+            possibleMovesBufferStack = new ReadWriteBuffer<int>[bufferSize];
+            possibleMovesLengthBufferStack = new ReadWriteBuffer<int>[bufferSize];
+            movesBufferStack = new ReadWriteBuffer<int>[bufferSize];
+            weightsBot1BufferStack = new ReadWriteBuffer<float>[bufferSize];
+            weightsBot2BufferStack = new ReadWriteBuffer<float>[bufferSize];
+
+            incommingBuffers = 0;
+            stackCounter = 0;
+        }
+
+        static void updateWeightBuffers(float[] weight1, float[] weight2)
+        {
+            lock(weight1Cache)
+                lock(weight2Cache)
+                {
+                    weight1Cache = weight1;
+                    weight2Cache = weight2;
+                }
+        }
+
+        static Thread t;
+        static Match[] simulateMatches(Mutation bot1, Mutation bot2, int parallelCount = 30000, int seriesCount = 5)
         {
             Match[] matchResults = new Match[parallelCount * seriesCount];
 
@@ -611,9 +619,15 @@ namespace ReversiSandbox
 
             Stopwatch fullTimer, stepTimer;
 
-            Thread t;
-            t = new Thread(() => bufferThreadAllocator(parallelCount));
-            t.Start();
+            updateWeightBuffers(bot1.weights, bot2.weights);
+            clearBuffers();
+
+            if (t==null)
+            {
+                t = new Thread(() => bufferThreadAllocator(parallelCount));
+                t.Start();
+            }
+            
 
             while (stackCounter == 0)
             {
@@ -654,14 +668,14 @@ namespace ReversiSandbox
 
                 for (int z = 0; z < (ReversiGame.gameSize * ReversiGame.gameSize - 4) / 2; z++)
                 {
-                    int[] randomNumbers = new int[parallelCount];
+                    /*int[] randomNumbers = new int[parallelCount];
 
                     for (int i = 0; i < parallelCount; i++)
                     {
                         randomNumbers[i] = r.Next(0, 10000);
                     }
 
-                    randomBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(randomNumbers);
+                    randomBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(randomNumbers);*/
 
                     /*gameFieldBuffer.CopyTo(gameFieldsFull);
 
@@ -774,26 +788,106 @@ namespace ReversiSandbox
         static int[] randomizedPlayers;
         //static int[] startingPlayers;
 
-        public static void testComputeShader()
+        public static float[] mutateWeights(float[] weights)
         {
-            Bot bot1 = new BotRandom();
-            Bot bot2 = new BotRandom();
+            Random r = new Random();
 
-            gameFieldBufferStack = new ReadWriteBuffer<int>[bufferSize];
-            playerBufferStack = new ReadWriteBuffer<int>[bufferSize];
-            possibleMovesBufferStack = new ReadWriteBuffer<int>[bufferSize];
-            possibleMovesLengthBufferStack = new ReadWriteBuffer<int>[bufferSize];
-            movesBufferStack = new ReadWriteBuffer<int>[bufferSize];
-            weightsBot1BufferStack = new ReadWriteBuffer<float>[bufferSize];
-            weightsBot2BufferStack = new ReadWriteBuffer<float>[bufferSize];
+            float[] newArr = new float[weights.Length];
 
-            int matchCount = 1000000;
-            int parallelCount = 1000000;
-            int seriesCount = matchCount / parallelCount;
+            Array.Copy(weights,0, newArr, 0, weights.Length);
+
+            newArr = normalizeArray(newArr);
+
+            for (int i = 0; i < newArr.Length; i++)
+            {
+                float mutate = 0.1f;
+                float amplitude = 0.5f;
+
+                if(r.NextSingle() <= mutate)
+                {
+                    int direction = r.Next(0,2) == 0?-1:1;
+                    newArr[i] += r.NextSingle() * amplitude * direction;
+                }
+            }
+
+            newArr = normalizeArray(newArr);
+
+            //Console.WriteLine();
+
+            for (int y = 0; y < 8; y++)
+            {
+                for (int x = 0; x < 8; x++)
+                {
+                    //Console.Write(newArr[x + y * 8] + " ");
+                }
+                //Console.WriteLine();
+            }
+
+            //Console.WriteLine();
+
+            return newArr;
+        }
+
+        public static float[] normalizeArray(float[] arr)
+        {
+            float max = 0;
+            for (int i = 0; i < arr.Length; i++)
+            {
+                if (arr[i] > max)
+                {
+                    max = arr[i];
+                }
+            }
+
+            for (int i = 0; i < arr.Length; i++)
+            {
+                arr[i] = arr[i] / max;
+            }
+
+            return arr;
+        }
+
+        static public void printMatchResults(Match[] results)
+        {
+            int matchCount = results.Length;
+
+            int wins = 0;
+            int tie = 0;
+            int wins2 = 0;
+            int start = 0;
+            int start2 = 0;
+
+            for (int i = 0; i < results.Length; i++)
+            {
+                if (results[i].Winner == 0) tie++;
+                if (results[i].Winner == 1) wins++;
+                if (results[i].Winner == 2) wins2++;
+                if (results[i].starter == 1) start++;
+                if (results[i].starter == 2) start2++;
+            }
+            //Console.WriteLine(tie);
+            //Console.WriteLine(wins);
+            //Console.WriteLine(wins2);
+            //Console.WriteLine(start);
+            //Console.WriteLine(start2);
+
+            Console.WriteLine();
+
+            Console.WriteLine("Tie : " + (tie * 100f / matchCount) + "%");
+            Console.WriteLine("Starter Wins : " + (wins * 100f / matchCount) + "%");
+            Console.WriteLine("Second Wins : " + (wins2 * 100f / matchCount) + "%");
+
+            Console.WriteLine();
+        }
+
+        static ReadWriteBuffer<int> randomBuffer, randomStopBuffer;
+
+        static void generateNewRandomness()
+        {
+            Random r = new Random();
+
             int minRandomCount = 8;
             int maxRandomCount = 16;
-
-            Random r = new Random();
 
             int[] randomStop = new int[parallelCount];
             int start1 = 0, start2 = 0;
@@ -808,17 +902,6 @@ namespace ReversiSandbox
                 else
                     start2++;
             }
-
-            gameFieldsGenerated = new int[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize];
-
-            ReadWriteBuffer<int> randomBuffer, randomStopBuffer;
-
-            //Reserve Memory for Games
-            randomGameFields = new int[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize];
-            randomizedPlayers = new int[parallelCount];
-            int[] moves = new int[parallelCount * 2];
-            int[] possibleMoves = new int[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize * 2];
-            int[] possibleMovesLength = new int[parallelCount];
 
             ReversiGame[] games = new ReversiGame[parallelCount];
 
@@ -835,22 +918,12 @@ namespace ReversiSandbox
                 Array.Copy(game.gameField, 0, randomGameFields, i * ReversiGame.gameSize * ReversiGame.gameSize, ReversiGame.gameSize * ReversiGame.gameSize);
             }
 
-            //startingPlayers = new int[parallelCount];
-            for (int i = 0; i < parallelCount; i++)
-            {
-                //startingPlayers[i] = r.Next(0, 2);
-            }
-            //Create Buffers
-            possibleMovesBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(possibleMoves);
 
-            possibleMovesLengthBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(possibleMovesLength);
+            randomStopBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(randomStop);
 
             playerBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(randomizedPlayers);
 
             gameFieldBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(randomGameFields);
-
-            movesBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(moves);
-            randomStopBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(randomStop);
 
             for (int z = 0; z < ReversiGame.gameSize * ReversiGame.gameSize - 4; z++)
             {
@@ -879,6 +952,40 @@ namespace ReversiSandbox
 
             gameFieldBuffer.CopyTo(randomGameFields);
             playerBuffer.CopyTo(randomizedPlayers);
+        }
+
+        static int parallelCount = 1000000;
+
+        public static void testComputeShader()
+        {
+            clearBuffers();
+
+            int matchCount = 1000000;
+            int parallelCount = 1000000;
+            int seriesCount = 1;
+
+            weight1Cache = new float[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize];
+            weight2Cache = new float[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize];
+
+
+            gameFieldsGenerated = new int[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize];
+
+            //Reserve Memory for Games
+            randomGameFields = new int[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize];
+            randomizedPlayers = new int[parallelCount];
+            int[] moves = new int[parallelCount * 2];
+            int[] possibleMoves = new int[parallelCount * ReversiGame.gameSize * ReversiGame.gameSize * 2];
+            int[] possibleMovesLength = new int[parallelCount];
+
+            //Create Buffers
+            possibleMovesBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(possibleMoves);
+
+            possibleMovesLengthBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(possibleMovesLength);
+
+            movesBuffer = GraphicsDevice.GetDefault().AllocateReadWriteBuffer(moves);
+
+            generateNewRandomness();
+            
             //possibleMovesBuffer.CopyTo(possibleMoves);
 
             // Print Playfields
@@ -898,34 +1005,79 @@ namespace ReversiSandbox
             Console.WriteLine("Done generating random gamestates.");
             //while (true) { }
 
-            //seriesCount games will result in same outcome due to same random maps!!
-            Match[] results = simulateMatches(bot1, bot2, parallelCount, seriesCount);
+            float[] weights1 = new float[ReversiGame.gameSize * ReversiGame.gameSize * parallelCount];
+            float[] weights2 = new float[ReversiGame.gameSize * ReversiGame.gameSize * parallelCount];
 
-            int bot1Wins = 0;
-            int tie = 0;
-            int bot2Wins = 0;
-            int bot1Start = 0;
-            int bot2Start = 0;
-
-            for (int i = 0; i < results.Length; i++)
+            for (int i = 0; i < weights1.Length; i++)
             {
-                if (results[i].Winner == 0) tie++;
-                if (results[i].Winner == 1) bot1Wins++;
-                if (results[i].Winner == 2) bot2Wins++;
-                if (results[i].starter == 1) bot1Start++;
-                if (results[i].starter == 2) bot2Start++;
+                weights1[i] = 1f;
+                //weights2[i] = 1f;
+                //weightsBot2[i] = r.NextSingle()*100f;
             }
-            Console.WriteLine(tie);
-            Console.WriteLine(bot1Wins);
-            Console.WriteLine(bot2Wins);
-            Console.WriteLine(bot1Start);
-            Console.WriteLine(bot2Start);
 
-            Console.WriteLine();
+            //startWeights = mutateWeights(startWeights);
 
-            Console.WriteLine("Tie : " + (tie * 100f / matchCount) + "%");
-            Console.WriteLine("Bot1 : " + (bot1Wins * 100f / matchCount) + "%");
-            Console.WriteLine("Bot2 : " + (bot2Wins * 100f / matchCount) + "%");
+            for (int i = 0; i < parallelCount; i++)
+            {
+                for (int y = 0; y < 8; y++)
+                {
+                    for (int x = 0; x < 8; x++)
+                    {
+                        weights2[(x + y * 8) + (i*8*8)] = startWeights[x + y * 8];
+                    }
+                }
+            }
+
+            int evolutionSize = 8;
+            Mutation[] bots = new Mutation[evolutionSize];
+
+            bots[0] = new Mutation();
+            bots[0].weights = weights1;
+            bots[1] = new Mutation();
+            bots[1].weights = weights2;
+            //bots[2] = new Mutation();
+            //bots[2].weights = weights2;
+
+            for (int i = 2; i < evolutionSize; i++)
+            {
+                bots[i] = new Mutation();
+                bots[i].weights = mutateWeights(weights2);
+
+                //for (int y = 0; y < 8; y++)
+                //{
+                    //for (int x = 0; x < 8; x++)
+                    //{
+                        //Console.Write(bots[i].weights[x+y*8].ToString() + " ");
+                    //}
+                    //Console.WriteLine();
+                //}
+                //Console.WriteLine();
+            }
+
+            for (int i = 0; i < evolutionSize; i++)
+            {
+                Mutation bot1 = bots[i];
+                for (int j = i+1; j < evolutionSize; j++)
+                {
+                    generateNewRandomness();
+                    Console.WriteLine("Bot" + i + " vs Bot" + j);
+                    Mutation bot2 = bots[j];
+
+                    Match[] results = simulateMatches(bot1, bot2, parallelCount, seriesCount);
+
+                    printMatchResults(results);
+                }
+            }
+
+            //seriesCount games will result in same outcome due to same random maps!!
+            //Match[] results = simulateMatches(bots[0], bots[1], parallelCount, seriesCount);
+
+            //printMatchResults(bots[0], bots[1]);
+        }
+
+        public class Mutation()
+        {
+            public float[] weights;
         }
     }
 }
