@@ -1,3 +1,3 @@
-Sandbox for playing with Bots in the game Reversi
+May i present to you a sandbox for the game Othello(Reversi).
 
-Code needs to be rewritten to be readable
+Im sorry for anyone looking into this messy codebase 👍
